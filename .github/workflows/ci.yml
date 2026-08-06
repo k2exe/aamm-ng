@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go mod tidy
+      - run: git diff --exit-code
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/aamm-ng-linux-amd64 ./cmd/aamm-ng
+      - run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/aamm-ng-linux-arm64 ./cmd/aamm-ng

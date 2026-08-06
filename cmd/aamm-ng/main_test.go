@@ -1,0 +1,20 @@
+package main
+
+import (
+	"bytes"
+	"testing"
+)
+
+func TestRun(t *testing.T) {
+	var output bytes.Buffer
+
+	if err := run(&output); err != nil {
+		t.Fatalf("run returned an error: %v", err)
+	}
+
+	const expected = "AAMM-NG development build\n"
+
+	if output.String() != expected {
+		t.Fatalf("output = %q; want %q", output.String(), expected)
+	}
+}
