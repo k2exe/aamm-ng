@@ -1,0 +1,30 @@
+# Build output
+/bin/
+/dist/
+/release/
+*.test
+*.prof
+coverage.out
+coverage.html
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local logs and runtime state
+*.log
+/run/
+/state/
