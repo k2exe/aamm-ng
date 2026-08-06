@@ -22,6 +22,8 @@ var (
 	ErrInvalidMessage    = errors.New("invalid alert message")
 	ErrLegacyConflict    = errors.New("legacy alert requires explicit conversion")
 	ErrOversizedConflict = errors.New("oversized alert requires explicit conversion")
+	ErrManagedConflict   = errors.New("managed alert does not require conversion")
+	ErrSourceChanged     = errors.New("alert changed during conversion")
 	ErrUnsafeFile        = errors.New("alert file is not a regular file")
 	ErrClosed            = errors.New("alert store is closed")
 )
@@ -326,6 +328,22 @@ func writeManaged(
 	target alerttarget.Target,
 	message alertmessage.Message,
 ) error {
+	return writeManagedChecked(
+		root,
+		target,
+		message,
+		func() error {
+			return ensureManagedWritable(root, target)
+		},
+	)
+}
+
+func writeManagedChecked(
+	root *os.Root,
+	target alerttarget.Target,
+	message alertmessage.Message,
+	check func() error,
+) error {
 	file, temporaryName, err := createTemporaryAlert(root)
 	if err != nil {
 		return fmt.Errorf(
@@ -402,9 +420,9 @@ func writeManaged(
 		)
 	}
 
-	// Recheck immediately before replacement so a legacy, oversized,
-	// symlinked, or otherwise unsafe file is not knowingly overwritten.
-	if err := ensureManagedWritable(root, target); err != nil {
+	// Recheck immediately before replacement so an unsafe or changed
+	// destination is not knowingly overwritten.
+	if err := check(); err != nil {
 		return err
 	}
 
