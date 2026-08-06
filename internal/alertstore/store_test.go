@@ -288,6 +288,260 @@ func TestReadAfterClose(t *testing.T) {
 	}
 }
 
+func TestWriteCreatesManagedAlert(t *testing.T) {
+	directory := t.TempDir()
+	target := mustTarget(t, "K2EXE-HAP-RB")
+	message := mustMessage(t, "Net open at 19:00\nUse <primary> channel")
+
+	store := mustOpen(t, directory)
+	defer store.Close()
+
+	if err := store.Write(target, message); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(
+		filepath.Join(directory, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(data) != message.EscapedHTML() {
+		t.Fatalf(
+			"stored content = %q; want %q",
+			string(data),
+			message.EscapedHTML(),
+		)
+	}
+
+	info, err := os.Stat(
+		filepath.Join(directory, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf(
+			"stored mode = %04o; want 0644",
+			info.Mode().Perm(),
+		)
+	}
+
+	entry, err := store.Read(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if entry.Kind != KindManaged {
+		t.Fatalf("Kind = %v; want KindManaged", entry.Kind)
+	}
+
+	if entry.Message.String() != message.String() {
+		t.Fatalf(
+			"Message = %q; want %q",
+			entry.Message.String(),
+			message.String(),
+		)
+	}
+}
+
+func TestWriteReplacesManagedAlert(t *testing.T) {
+	directory := t.TempDir()
+	target := mustTarget(t, "all")
+	oldMessage := mustMessage(t, "Old message")
+	newMessage := mustMessage(t, "Replacement message")
+
+	writeAlert(
+		t,
+		directory,
+		target.Filename(),
+		[]byte(oldMessage.EscapedHTML()),
+	)
+
+	store := mustOpen(t, directory)
+	defer store.Close()
+
+	if err := store.Write(target, newMessage); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(
+		filepath.Join(directory, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(data) != newMessage.EscapedHTML() {
+		t.Fatalf(
+			"stored content = %q; want %q",
+			string(data),
+			newMessage.EscapedHTML(),
+		)
+	}
+
+	info, err := os.Stat(
+		filepath.Join(directory, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf(
+			"stored mode = %04o; want 0644",
+			info.Mode().Perm(),
+		)
+	}
+}
+
+func TestWriteRejectsLegacyAlertWithoutChangingIt(t *testing.T) {
+	directory := t.TempDir()
+	target := mustTarget(t, "all")
+	legacy := []byte(`<strong>Legacy alert</strong>`)
+	message := mustMessage(t, "Managed replacement")
+
+	writeAlert(t, directory, target.Filename(), legacy)
+
+	store := mustOpen(t, directory)
+	defer store.Close()
+
+	err := store.Write(target, message)
+	if !errors.Is(err, ErrLegacyConflict) {
+		t.Fatalf(
+			"Write() error = %v; want ErrLegacyConflict",
+			err,
+		)
+	}
+
+	after, readErr := os.ReadFile(
+		filepath.Join(directory, target.Filename()),
+	)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+
+	if !bytes.Equal(after, legacy) {
+		t.Fatal("legacy alert changed after rejected write")
+	}
+}
+
+func TestWriteRejectsOversizedAlertWithoutChangingIt(t *testing.T) {
+	directory := t.TempDir()
+	target := mustTarget(t, "weather")
+	oversized := bytes.Repeat([]byte("x"), MaxLegacyBytes+1)
+	message := mustMessage(t, "Managed replacement")
+
+	writeAlert(t, directory, target.Filename(), oversized)
+
+	store := mustOpen(t, directory)
+	defer store.Close()
+
+	err := store.Write(target, message)
+	if !errors.Is(err, ErrOversizedConflict) {
+		t.Fatalf(
+			"Write() error = %v; want ErrOversizedConflict",
+			err,
+		)
+	}
+
+	after, readErr := os.ReadFile(
+		filepath.Join(directory, target.Filename()),
+	)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+
+	if !bytes.Equal(after, oversized) {
+		t.Fatal("oversized alert changed after rejected write")
+	}
+}
+
+func TestWriteRejectsAlertSymlink(t *testing.T) {
+	directory := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	target := mustTarget(t, "all")
+	message := mustMessage(t, "Managed replacement")
+
+	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(
+		outside,
+		filepath.Join(directory, target.Filename()),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	store := mustOpen(t, directory)
+	defer store.Close()
+
+	err := store.Write(target, message)
+	if !errors.Is(err, ErrUnsafeFile) {
+		t.Fatalf("Write() error = %v; want ErrUnsafeFile", err)
+	}
+
+	after, readErr := os.ReadFile(outside)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+
+	if string(after) != "outside" {
+		t.Fatal("symlink destination changed after rejected write")
+	}
+}
+
+func TestWriteRejectsZeroTarget(t *testing.T) {
+	store := mustOpen(t, t.TempDir())
+	defer store.Close()
+
+	err := store.Write(
+		alerttarget.Target{},
+		mustMessage(t, "Message"),
+	)
+	if !errors.Is(err, ErrInvalidTarget) {
+		t.Fatalf(
+			"Write() error = %v; want ErrInvalidTarget",
+			err,
+		)
+	}
+}
+
+func TestWriteRejectsZeroMessage(t *testing.T) {
+	store := mustOpen(t, t.TempDir())
+	defer store.Close()
+
+	err := store.Write(
+		mustTarget(t, "all"),
+		alertmessage.Message{},
+	)
+	if !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf(
+			"Write() error = %v; want ErrInvalidMessage",
+			err,
+		)
+	}
+}
+
+func TestWriteAfterClose(t *testing.T) {
+	store := mustOpen(t, t.TempDir())
+
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	err := store.Write(
+		mustTarget(t, "all"),
+		mustMessage(t, "Message"),
+	)
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("Write() error = %v; want ErrClosed", err)
+	}
+}
+
 func newBackupRoot(t *testing.T) string {
 	t.Helper()
 
