@@ -42,10 +42,11 @@ func (s *Store) ConvertLegacy(
 		return ConversionResult{}, ErrClosed
 	}
 
-	snapshot, backupName, err := backupConvertible(
+	snapshot, backupName, err := backupAlert(
 		s.alertRoot,
 		s.backupRoot,
 		target,
+		true,
 	)
 	if err != nil {
 		return ConversionResult{}, err
@@ -78,10 +79,11 @@ func (s *Store) ConvertLegacy(
 	}, nil
 }
 
-func backupConvertible(
+func backupAlert(
 	alertRoot *os.Root,
 	backupRoot *os.Root,
 	target alerttarget.Target,
+	rejectManaged bool,
 ) (sourceSnapshot, string, error) {
 	name := target.Filename()
 
@@ -188,7 +190,7 @@ func backupConvertible(
 		)
 	}
 
-	if copied <= MaxLegacyBytes {
+	if rejectManaged && copied <= MaxLegacyBytes {
 		_, managed := alertmessage.ParseManagedHTML(string(capture.data))
 		if managed {
 			return sourceSnapshot{}, "", fmt.Errorf(
