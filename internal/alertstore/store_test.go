@@ -14,7 +14,7 @@ import (
 func TestOpenRequiresExistingDirectory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "missing")
 
-	store, err := Open(path)
+	store, err := Open(Config{AlertRoot: path, BackupRoot: newBackupRoot(t)})
 	if !errors.Is(err, ErrInvalidRoot) {
 		t.Fatalf("Open() error = %v; want ErrInvalidRoot", err)
 	}
@@ -35,7 +35,7 @@ func TestOpenRejectsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := Open(path)
+	store, err := Open(Config{AlertRoot: path, BackupRoot: newBackupRoot(t)})
 	if !errors.Is(err, ErrInvalidRoot) {
 		t.Fatalf("Open() error = %v; want ErrInvalidRoot", err)
 	}
@@ -58,13 +58,78 @@ func TestOpenRejectsSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := Open(link)
+	store, err := Open(Config{
+		AlertRoot:  link,
+		BackupRoot: newBackupRoot(t),
+	})
 	if !errors.Is(err, ErrInvalidRoot) {
 		t.Fatalf("Open() error = %v; want ErrInvalidRoot", err)
 	}
 
 	if store != nil {
 		t.Fatal("Open() returned a store for a symlink")
+	}
+}
+
+func TestOpenRequiresExistingBackupDirectory(t *testing.T) {
+	config := Config{
+		AlertRoot:  t.TempDir(),
+		BackupRoot: filepath.Join(t.TempDir(), "missing"),
+	}
+
+	store, err := Open(config)
+	if !errors.Is(err, ErrInvalidBackupRoot) {
+		t.Fatalf("Open() error = %v; want ErrInvalidBackupRoot", err)
+	}
+
+	if store != nil {
+		t.Fatal("Open() returned a store with a missing backup directory")
+	}
+}
+
+func TestOpenRejectsBackupSymlink(t *testing.T) {
+	parent := t.TempDir()
+	realDirectory := filepath.Join(parent, "real")
+	link := filepath.Join(parent, "linked")
+
+	if err := os.Mkdir(realDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(realDirectory, link); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := Open(Config{
+		AlertRoot:  t.TempDir(),
+		BackupRoot: link,
+	})
+	if !errors.Is(err, ErrInvalidBackupRoot) {
+		t.Fatalf("Open() error = %v; want ErrInvalidBackupRoot", err)
+	}
+
+	if store != nil {
+		t.Fatal("Open() returned a store with a symlinked backup directory")
+	}
+}
+
+func TestOpenRequiresPrivateBackupPermissions(t *testing.T) {
+	backupRoot := filepath.Join(t.TempDir(), "backups")
+
+	if err := os.Mkdir(backupRoot, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := Open(Config{
+		AlertRoot:  t.TempDir(),
+		BackupRoot: backupRoot,
+	})
+	if !errors.Is(err, ErrInvalidBackupRoot) {
+		t.Fatalf("Open() error = %v; want ErrInvalidBackupRoot", err)
+	}
+
+	if store != nil {
+		t.Fatal("Open() returned a store with non-private backup permissions")
 	}
 }
 
@@ -223,10 +288,22 @@ func TestReadAfterClose(t *testing.T) {
 	}
 }
 
+func newBackupRoot(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "backups")
+
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	return path
+}
+
 func mustOpen(t *testing.T, path string) *Store {
 	t.Helper()
 
-	store, err := Open(path)
+	store, err := Open(Config{AlertRoot: path, BackupRoot: newBackupRoot(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

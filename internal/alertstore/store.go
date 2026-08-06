@@ -14,10 +14,11 @@ import (
 const MaxLegacyBytes = 64 * 1024
 
 var (
-	ErrInvalidRoot   = errors.New("invalid alert directory")
-	ErrInvalidTarget = errors.New("invalid alert target")
-	ErrUnsafeFile    = errors.New("alert file is not a regular file")
-	ErrClosed        = errors.New("alert store is closed")
+	ErrInvalidRoot       = errors.New("invalid alert directory")
+	ErrInvalidBackupRoot = errors.New("invalid backup directory")
+	ErrInvalidTarget     = errors.New("invalid alert target")
+	ErrUnsafeFile        = errors.New("alert file is not a regular file")
+	ErrClosed            = errors.New("alert store is closed")
 )
 
 type Kind uint8
@@ -36,38 +37,88 @@ type Entry struct {
 	Size       int64
 }
 
-type Store struct {
-	mu   sync.RWMutex
-	root *os.Root
+type Config struct {
+	AlertRoot  string
+	BackupRoot string
 }
 
-func Open(path string) (*Store, error) {
+type Store struct {
+	mu         sync.RWMutex
+	alertRoot  *os.Root
+	backupRoot *os.Root
+}
+
+func Open(config Config) (*Store, error) {
+	alertRoot, err := openRoot(config.AlertRoot, ErrInvalidRoot, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	backupRoot, err := openRoot(
+		config.BackupRoot,
+		ErrInvalidBackupRoot,
+		0o700,
+	)
+	if err != nil {
+		_ = alertRoot.Close()
+		return nil, err
+	}
+
+	return &Store{
+		alertRoot:  alertRoot,
+		backupRoot: backupRoot,
+	}, nil
+}
+
+func openRoot(
+	path string,
+	invalidError error,
+	requiredMode os.FileMode,
+) (*os.Root, error) {
+	if path == "" {
+		return nil, fmt.Errorf("%w: path is empty", invalidError)
+	}
+
 	info, err := os.Lstat(path)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s: %w", ErrInvalidRoot, path, err)
+		return nil, fmt.Errorf("%w: %s: %w", invalidError, path, err)
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidRoot, path)
+		return nil, fmt.Errorf("%w: %s", invalidError, path)
+	}
+
+	if requiredMode != 0 && info.Mode().Perm() != requiredMode {
+		return nil, fmt.Errorf(
+			"%w: %s has mode %04o; want %04o",
+			invalidError,
+			path,
+			info.Mode().Perm(),
+			requiredMode,
+		)
 	}
 
 	root, err := os.OpenRoot(path)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s: %w", ErrInvalidRoot, path, err)
+		return nil, fmt.Errorf("%w: %s: %w", invalidError, path, err)
 	}
 
 	openedInfo, err := root.Stat(".")
 	if err != nil {
 		_ = root.Close()
-		return nil, fmt.Errorf("%w: %s: %w", ErrInvalidRoot, path, err)
+		return nil, fmt.Errorf("%w: %s: %w", invalidError, path, err)
 	}
 
 	if !os.SameFile(info, openedInfo) {
 		_ = root.Close()
-		return nil, fmt.Errorf("%w: directory changed while opening: %s", ErrInvalidRoot, path)
+		return nil, fmt.Errorf(
+			"%w: directory changed while opening: %s",
+			invalidError,
+			path,
+		)
 	}
 
-	return &Store{root: root}, nil
+	return root, nil
 }
 
 func (s *Store) Close() error {
@@ -78,14 +129,19 @@ func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.root == nil {
-		return nil
+	var closeErrors []error
+
+	if s.alertRoot != nil {
+		closeErrors = append(closeErrors, s.alertRoot.Close())
+		s.alertRoot = nil
 	}
 
-	err := s.root.Close()
-	s.root = nil
+	if s.backupRoot != nil {
+		closeErrors = append(closeErrors, s.backupRoot.Close())
+		s.backupRoot = nil
+	}
 
-	return err
+	return errors.Join(closeErrors...)
 }
 
 func (s *Store) Read(target alerttarget.Target) (Entry, error) {
@@ -96,13 +152,13 @@ func (s *Store) Read(target alerttarget.Target) (Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.root == nil {
+	if s.alertRoot == nil {
 		return Entry{}, ErrClosed
 	}
 
 	name := target.Filename()
 
-	info, err := s.root.Lstat(name)
+	info, err := s.alertRoot.Lstat(name)
 	if err != nil {
 		return Entry{}, fmt.Errorf("inspect alert %q: %w", target.String(), err)
 	}
@@ -111,7 +167,7 @@ func (s *Store) Read(target alerttarget.Target) (Entry, error) {
 		return Entry{}, fmt.Errorf("%w: %s", ErrUnsafeFile, name)
 	}
 
-	file, err := s.root.Open(name)
+	file, err := s.alertRoot.Open(name)
 	if err != nil {
 		return Entry{}, fmt.Errorf("open alert %q: %w", target.String(), err)
 	}
