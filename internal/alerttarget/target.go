@@ -9,11 +9,13 @@ const MaxLength = 63
 
 var ErrInvalid = errors.New("invalid alert target")
 
-type target string
+type Target struct {
+	value string
+}
 
-func Parse(value string) (target, error) {
+func Parse(value string) (Target, error) {
 	if value == "" || len(value) > MaxLength {
-		return "", ErrInvalid
+		return Target{}, ErrInvalid
 	}
 
 	value = strings.ToLower(value)
@@ -29,18 +31,22 @@ func Parse(value string) (target, error) {
 			continue
 		}
 
-		return "", ErrInvalid
+		return Target{}, ErrInvalid
 	}
 
-	return target(value), nil
+	return Target{value: value}, nil
 }
 
-func (t target) String() string {
-	return string(t)
+func (t Target) String() string {
+	return t.value
 }
 
-func (t target) Filename() string {
-	return string(t) + ".txt"
+func (t Target) Filename() string {
+	if t.value == "" {
+		return ""
+	}
+
+	return t.value + ".txt"
 }
 
 func isLetterOrDigit(character byte) bool {

@@ -17,22 +17,24 @@ var (
 	ErrControlCharacter = errors.New("alert message contains a control character")
 )
 
-type message string
+type Message struct {
+	value string
+}
 
-func Parse(value string) (message, error) {
+func Parse(value string) (Message, error) {
 	if len(value) > MaxBytes {
-		return "", ErrTooLarge
+		return Message{}, ErrTooLarge
 	}
 
 	if !utf8.ValidString(value) {
-		return "", ErrInvalidUTF8
+		return Message{}, ErrInvalidUTF8
 	}
 
 	value = strings.ReplaceAll(value, "\r\n", "\n")
 	value = strings.ReplaceAll(value, "\r", "\n")
 
 	if strings.TrimSpace(value) == "" {
-		return "", ErrEmpty
+		return Message{}, ErrEmpty
 	}
 
 	for _, character := range value {
@@ -41,18 +43,18 @@ func Parse(value string) (message, error) {
 		}
 
 		if unicode.IsControl(character) {
-			return "", ErrControlCharacter
+			return Message{}, ErrControlCharacter
 		}
 	}
 
-	return message(value), nil
+	return Message{value: value}, nil
 }
 
-func (m message) String() string {
-	return string(m)
+func (m Message) String() string {
+	return m.value
 }
 
-func (m message) EscapedHTML() string {
-	escaped := html.EscapeString(string(m))
+func (m Message) EscapedHTML() string {
+	escaped := html.EscapeString(m.value)
 	return strings.ReplaceAll(escaped, "\n", "<br>\n")
 }

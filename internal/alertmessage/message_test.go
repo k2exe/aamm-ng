@@ -86,8 +86,8 @@ func TestParseRejectsInvalidMessages(t *testing.T) {
 				t.Fatalf("Parse() error = %v; want %v", err, test.expected)
 			}
 
-			if message != "" {
-				t.Fatalf("Parse() message = %q; want empty message", message)
+			if message != (Message{}) {
+				t.Fatalf("Parse() message = %q; want zero value", message.String())
 			}
 		})
 	}
@@ -104,5 +104,17 @@ func TestEscapedHTML(t *testing.T) {
 
 	if message.EscapedHTML() != expected {
 		t.Fatalf("EscapedHTML() = %q; want %q", message.EscapedHTML(), expected)
+	}
+}
+
+func TestZeroValue(t *testing.T) {
+	var message Message
+
+	if message.String() != "" {
+		t.Fatalf("String() = %q; want empty string", message.String())
+	}
+
+	if message.EscapedHTML() != "" {
+		t.Fatalf("EscapedHTML() = %q; want empty string", message.EscapedHTML())
 	}
 }

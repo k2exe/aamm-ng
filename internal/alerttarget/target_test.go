@@ -61,8 +61,8 @@ func TestParseRejectsInvalidTargets(t *testing.T) {
 				t.Fatalf("Parse(%q) error = %v; want ErrInvalid", input, err)
 			}
 
-			if target != "" {
-				t.Fatalf("Parse(%q) target = %q; want empty target", input, target)
+			if target != (Target{}) {
+				t.Fatalf("Parse(%q) target = %q; want zero value", input, target.String())
 			}
 		})
 	}
@@ -78,5 +78,17 @@ func TestFilename(t *testing.T) {
 
 	if target.Filename() != expected {
 		t.Fatalf("Filename() = %q; want %q", target.Filename(), expected)
+	}
+}
+
+func TestZeroValue(t *testing.T) {
+	var target Target
+
+	if target.String() != "" {
+		t.Fatalf("String() = %q; want empty string", target.String())
+	}
+
+	if target.Filename() != "" {
+		t.Fatalf("Filename() = %q; want empty string", target.Filename())
 	}
 }
