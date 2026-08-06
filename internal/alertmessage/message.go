@@ -58,3 +58,21 @@ func (m Message) EscapedHTML() string {
 	escaped := html.EscapeString(m.value)
 	return strings.ReplaceAll(escaped, "\n", "<br>\n")
 }
+
+// ParseManagedHTML accepts only the exact canonical representation generated
+// by Message.EscapedHTML.
+func ParseManagedHTML(value string) (Message, bool) {
+	decoded := strings.ReplaceAll(value, "<br>\n", "\n")
+	decoded = html.UnescapeString(decoded)
+
+	message, err := Parse(decoded)
+	if err != nil {
+		return Message{}, false
+	}
+
+	if message.EscapedHTML() != value {
+		return Message{}, false
+	}
+
+	return message, true
+}

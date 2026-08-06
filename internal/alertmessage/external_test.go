@@ -20,3 +20,14 @@ func TestPublicAPI(t *testing.T) {
 		t.Fatalf("EscapedHTML() = %q", message.EscapedHTML())
 	}
 }
+
+func TestManagedHTMLAPI(t *testing.T) {
+	message, managed := alertmessage.ParseManagedHTML("Maintenance &amp; testing")
+	if !managed {
+		t.Fatal("canonical stored content classified as legacy")
+	}
+
+	if message.String() != "Maintenance & testing" {
+		t.Fatalf("String() = %q", message.String())
+	}
+}

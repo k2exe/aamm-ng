@@ -118,3 +118,56 @@ func TestZeroValue(t *testing.T) {
 		t.Fatalf("EscapedHTML() = %q; want empty string", message.EscapedHTML())
 	}
 }
+
+func TestParseManagedHTML(t *testing.T) {
+	tests := map[string]string{
+		"Maintenance":                  "Maintenance",
+		"Maintenance &amp; testing":    "Maintenance & testing",
+		"&lt;b&gt;safe text&lt;/b&gt;": "<b>safe text</b>",
+		"Line one<br>\nLine two":       "Line one\nLine two",
+		"Temperature: 21 °C":           "Temperature: 21 °C",
+	}
+
+	for stored, expected := range tests {
+		t.Run(stored, func(t *testing.T) {
+			message, managed := ParseManagedHTML(stored)
+			if !managed {
+				t.Fatalf("ParseManagedHTML(%q) classified canonical content as legacy", stored)
+			}
+
+			if message.String() != expected {
+				t.Fatalf("ParseManagedHTML(%q) = %q; want %q", stored, message.String(), expected)
+			}
+
+			if message.EscapedHTML() != stored {
+				t.Fatalf("EscapedHTML() = %q; want exact input %q", message.EscapedHTML(), stored)
+			}
+		})
+	}
+}
+
+func TestParseManagedHTMLRejectsLegacyContent(t *testing.T) {
+	tests := []string{
+		"",
+		"<b>Emergency Net</b>",
+		"Line one<br>Line two",
+		"Line one<br/>Line two",
+		"Line one<br />Line two",
+		"Maintenance &quot;now&quot;",
+		"Line one<br>\r\nLine two",
+	}
+
+	for _, stored := range tests {
+		t.Run(stored, func(t *testing.T) {
+			message, managed := ParseManagedHTML(stored)
+
+			if managed {
+				t.Fatalf("ParseManagedHTML(%q) classified legacy content as managed", stored)
+			}
+
+			if message != (Message{}) {
+				t.Fatalf("ParseManagedHTML(%q) returned nonzero message %q", stored, message.String())
+			}
+		})
+	}
+}
