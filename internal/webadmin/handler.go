@@ -16,6 +16,7 @@ type AlertManager interface {
 	Read(context.Context, string) (localcontrol.EntryResult, error)
 	Write(context.Context, string, string) (localcontrol.WriteResult, error)
 	Convert(context.Context, string, string) (localcontrol.ConvertResult, error)
+	Delete(context.Context, string) (localcontrol.DeleteResult, error)
 }
 
 func NewHandler(
@@ -72,6 +73,63 @@ func NewHandler(
 				Entries: listing.Entries,
 				Issues:  listing.Issues,
 			},
+		)
+	})
+
+	mux.HandleFunc("/alerts/{target}/delete", func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		switch request.Method {
+		case http.MethodGet, http.MethodHead:
+
+		case http.MethodPost:
+			if !sameOrigin(request) {
+				forbidden(writer)
+				return
+			}
+
+		default:
+			writer.Header().Set(
+				"Allow",
+				"GET, HEAD, POST",
+			)
+			http.Error(
+				writer,
+				"Method not allowed.",
+				http.StatusMethodNotAllowed,
+			)
+			return
+		}
+
+		target, err := alerttarget.Parse(
+			request.PathValue("target"),
+		)
+		if err != nil {
+			http.NotFound(writer, request)
+			return
+		}
+
+		if alerts == nil {
+			managementUnavailable(writer)
+			return
+		}
+
+		if request.Method == http.MethodPost {
+			handleAlertDelete(
+				writer,
+				request,
+				alerts,
+				target,
+			)
+			return
+		}
+
+		handleDeleteConfirmation(
+			writer,
+			request,
+			alerts,
+			target,
 		)
 	})
 
@@ -275,6 +333,52 @@ Unknown alert type
 {{end}}
 </ul>
 {{end}}
+
+</main>
+</body>
+</html>
+`),
+)
+
+var deleteTemplate = template.Must(
+	template.New("delete").Parse(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete {{.Target}} - AAMM-NG</title>
+</head>
+<body>
+<main>
+<p><a href="/alerts/{{.Target}}">Back to alert</a></p>
+
+<h1>Delete alert: {{.Target}}</h1>
+
+<p>
+This will remove the alert from the node.
+AAMM-NG will create a backup before deletion.
+</p>
+
+<dl>
+<dt>Type</dt>
+<dd>{{.Kind}}</dd>
+<dt>Size</dt>
+<dd>{{.Size}} bytes</dd>
+</dl>
+
+<form method="post" action="/alerts/{{.Target}}/delete">
+<label for="confirm">
+Type <strong>{{.Target}}</strong> to confirm deletion:
+</label><br>
+<input
+	id="confirm"
+	name="confirm"
+	type="text"
+	autocomplete="off"
+	required
+>
+<button type="submit">Delete alert</button>
+</form>
 </main>
 </body>
 </html>
@@ -328,6 +432,8 @@ var detailTemplate = template.Must(
 {{else}}
 <p>Unknown alert type.</p>
 {{end}}
+
+<p><a href="/alerts/{{.Target}}/delete">Delete alert</a></p>
 </main>
 </body>
 </html>

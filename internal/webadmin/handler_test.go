@@ -503,6 +503,11 @@ type fakeLister struct {
 	convertCalls   int
 	convertTarget  string
 	convertMessage string
+
+	deleteResult localcontrol.DeleteResult
+	deleteErr    error
+	deleteCalls  int
+	deleteTarget string
 }
 
 func (lister *fakeLister) List(
@@ -545,6 +550,16 @@ func (lister *fakeLister) Convert(
 	lister.convertMessage = message
 
 	return lister.convertResult, lister.convertErr
+}
+
+func (lister *fakeLister) Delete(
+	_ context.Context,
+	target string,
+) (localcontrol.DeleteResult, error) {
+	lister.deleteCalls++
+	lister.deleteTarget = target
+
+	return lister.deleteResult, lister.deleteErr
 }
 
 var _ AlertManager = (*fakeLister)(nil)
@@ -1597,5 +1612,428 @@ func TestHandlerDoesNotShowConversionFormForManagedAlert(t *testing.T) {
 		"/alerts/all/convert",
 	) {
 		t.Fatal("managed alert exposed conversion form")
+	}
+}
+
+func authenticatedDeleteRequest(
+	t *testing.T,
+	path string,
+	confirm string,
+	origin string,
+) *http.Request {
+	t.Helper()
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313"+path,
+		strings.NewReader("confirm="+confirm),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+
+	if origin != "" {
+		request.Header.Set("Origin", origin)
+	}
+
+	request.AddCookie(
+		&http.Cookie{
+			Name:  "authV1",
+			Value: "opaque-session",
+		},
+	)
+
+	return request
+}
+
+func TestHandlerShowsDeleteConfirmation(t *testing.T) {
+	alerts := &fakeLister{
+		readResult: localcontrol.EntryResult{
+			Target: "all",
+			Kind:   "managed",
+			Size:   8,
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/all/delete",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusOK,
+		)
+	}
+
+	body := response.Body.String()
+
+	if !strings.Contains(
+		body,
+		"Delete alert: all",
+	) {
+		t.Fatal("delete confirmation heading missing")
+	}
+
+	if !strings.Contains(
+		body,
+		`action="/alerts/all/delete"`,
+	) {
+		t.Fatal("delete form missing")
+	}
+
+	if !strings.Contains(
+		body,
+		"AAMM-NG will create a backup before deletion",
+	) {
+		t.Fatal("backup notice missing")
+	}
+
+	if alerts.deleteCalls != 0 {
+		t.Fatal("Delete called while rendering confirmation")
+	}
+}
+
+func TestHandlerDeletesAlertAfterExplicitConfirmation(t *testing.T) {
+	alerts := &fakeLister{
+		deleteResult: localcontrol.DeleteResult{
+			Target:     "all",
+			BackupName: "all.txt.backup",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedDeleteRequest(
+		t,
+		"/alerts/ALL/delete",
+		"all",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusSeeOther,
+		)
+	}
+
+	if location := response.Header().Get("Location"); location != "/" {
+		t.Fatalf(
+			"Location = %q; want /",
+			location,
+		)
+	}
+
+	if alerts.deleteCalls != 1 {
+		t.Fatalf(
+			"Delete calls = %d; want 1",
+			alerts.deleteCalls,
+		)
+	}
+
+	if alerts.deleteTarget != "all" {
+		t.Fatalf(
+			"Delete target = %q; want all",
+			alerts.deleteTarget,
+		)
+	}
+}
+
+func TestHandlerRejectsWrongDeleteConfirmation(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedDeleteRequest(
+		t,
+		"/alerts/all/delete",
+		"something-else",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusBadRequest,
+		)
+	}
+
+	if alerts.deleteCalls != 0 {
+		t.Fatal("Delete called with wrong confirmation")
+	}
+}
+
+func TestHandlerRejectsDeleteWithoutOrigin(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedDeleteRequest(
+		t,
+		"/alerts/all/delete",
+		"all",
+		"",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusForbidden,
+		)
+	}
+
+	if alerts.deleteCalls != 0 {
+		t.Fatal("Delete called without Origin")
+	}
+}
+
+func TestHandlerRejectsDeleteFromDifferentOrigin(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedDeleteRequest(
+		t,
+		"/alerts/all/delete",
+		"all",
+		"http://node.local.mesh",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusForbidden,
+		)
+	}
+
+	if alerts.deleteCalls != 0 {
+		t.Fatal("Delete called for mismatched Origin")
+	}
+}
+
+func TestHandlerMapsDeleteSourceChangedToConflict(t *testing.T) {
+	alerts := &fakeLister{
+		deleteErr: &localcontrol.RemoteError{
+			Code:    localcontrol.ErrorSourceChanged,
+			Message: "internal daemon detail",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedDeleteRequest(
+		t,
+		"/alerts/all/delete",
+		"all",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusConflict,
+		)
+	}
+
+	if strings.Contains(
+		response.Body.String(),
+		"internal daemon detail",
+	) {
+		t.Fatal("response exposed daemon error detail")
+	}
+}
+
+func TestHandlerReturnsNotFoundWhenDeleteTargetMissing(t *testing.T) {
+	alerts := &fakeLister{
+		deleteErr: &localcontrol.RemoteError{
+			Code:    localcontrol.ErrorNotFound,
+			Message: "internal daemon detail",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedDeleteRequest(
+		t,
+		"/alerts/missing/delete",
+		"missing",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusNotFound,
+		)
+	}
+
+	if strings.Contains(
+		response.Body.String(),
+		"internal daemon detail",
+	) {
+		t.Fatal("response exposed daemon error detail")
+	}
+}
+
+func TestHandlerDoesNotDeleteWithoutAuthentication(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{},
+		alerts,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313/alerts/all/delete",
+		strings.NewReader("confirm=all"),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+	request.Header.Set(
+		"Origin",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusUnauthorized,
+		)
+	}
+
+	if alerts.deleteCalls != 0 {
+		t.Fatal("Delete called without authentication")
+	}
+}
+
+func TestHandlerDeleteEndpointRejectsUnsupportedMethod(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodPut,
+		"/alerts/all/delete",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusMethodNotAllowed,
+		)
+	}
+
+	if allow := response.Header().Get("Allow"); allow != "GET, HEAD, POST" {
+		t.Fatalf(
+			"Allow = %q; want GET, HEAD, POST",
+			allow,
+		)
+	}
+
+	if alerts.deleteCalls != 0 {
+		t.Fatal("Delete called for unsupported method")
+	}
+}
+
+func TestHandlerDetailLinksToDeleteConfirmation(t *testing.T) {
+	alerts := &fakeLister{
+		readResult: localcontrol.EntryResult{
+			Target:  "all",
+			Kind:    "managed",
+			Message: "Net open",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/all",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if !strings.Contains(
+		response.Body.String(),
+		`href="/alerts/all/delete"`,
+	) {
+		t.Fatal("delete confirmation link missing")
 	}
 }
