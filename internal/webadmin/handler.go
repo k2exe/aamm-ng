@@ -11,14 +11,15 @@ import (
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
-type AlertReader interface {
+type AlertManager interface {
 	List(context.Context) (localcontrol.ListResult, error)
 	Read(context.Context, string) (localcontrol.EntryResult, error)
+	Write(context.Context, string, string) (localcontrol.WriteResult, error)
 }
 
 func NewHandler(
 	verifier SessionVerifier,
-	alerts AlertReader,
+	alerts AlertManager,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -79,8 +80,18 @@ func NewHandler(
 	) {
 		switch request.Method {
 		case http.MethodGet, http.MethodHead:
+
+		case http.MethodPost:
+			if !sameOrigin(request) {
+				forbidden(writer)
+				return
+			}
+
 		default:
-			writer.Header().Set("Allow", "GET, HEAD")
+			writer.Header().Set(
+				"Allow",
+				"GET, HEAD, POST",
+			)
 			http.Error(
 				writer,
 				"Method not allowed.",
@@ -108,6 +119,16 @@ func NewHandler(
 
 		if alerts == nil {
 			managementUnavailable(writer)
+			return
+		}
+
+		if request.Method == http.MethodPost {
+			handleAlertWrite(
+				writer,
+				request,
+				alerts,
+				target,
+			)
 			return
 		}
 
@@ -242,7 +263,12 @@ var detailTemplate = template.Must(
 
 {{if eq .Kind "managed"}}
 <h2>Message</h2>
-<pre>{{.Message}}</pre>
+<form method="post" action="/alerts/{{.Target}}">
+<label for="message">Alert message</label><br>
+<textarea id="message" name="message" rows="8" cols="72" required>{{.Message}}</textarea>
+<p>Maximum 4096 bytes.</p>
+<button type="submit">Save alert</button>
+</form>
 {{else if eq .Kind "legacy"}}
 <h2>Legacy source</h2>
 <p>This legacy alert must be converted before AAMM-NG can manage it.</p>

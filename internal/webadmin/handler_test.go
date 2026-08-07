@@ -491,6 +491,12 @@ type fakeLister struct {
 	readErr    error
 	readCalls  int
 	readTarget string
+
+	writeResult  localcontrol.WriteResult
+	writeErr     error
+	writeCalls   int
+	writeTarget  string
+	writeMessage string
 }
 
 func (lister *fakeLister) List(
@@ -511,7 +517,19 @@ func (lister *fakeLister) Read(
 	return lister.readResult, lister.readErr
 }
 
-var _ AlertReader = (*fakeLister)(nil)
+func (lister *fakeLister) Write(
+	_ context.Context,
+	target string,
+	message string,
+) (localcontrol.WriteResult, error) {
+	lister.writeCalls++
+	lister.writeTarget = target
+	lister.writeMessage = message
+
+	return lister.writeResult, lister.writeErr
+}
+
+var _ AlertManager = (*fakeLister)(nil)
 
 func TestHandlerLinksAlertsToDetailPage(t *testing.T) {
 	handler := NewHandler(
@@ -848,5 +866,371 @@ func TestHandlerSupportsAlertDetailHEAD(t *testing.T) {
 			"Read calls = %d; want 1",
 			alerts.readCalls,
 		)
+	}
+}
+
+func authenticatedMutationRequest(
+	t *testing.T,
+	path string,
+	message string,
+	origin string,
+) *http.Request {
+	t.Helper()
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313"+path,
+		strings.NewReader("message="+message),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+
+	if origin != "" {
+		request.Header.Set("Origin", origin)
+	}
+
+	request.AddCookie(
+		&http.Cookie{
+			Name:  "authV1",
+			Value: "opaque-session",
+		},
+	)
+
+	return request
+}
+
+func TestHandlerWritesManagedAlert(t *testing.T) {
+	alerts := &fakeLister{
+		writeResult: localcontrol.WriteResult{
+			Target: "all",
+			Kind:   "managed",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/ALL",
+		"Updated",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusSeeOther,
+		)
+	}
+
+	if location := response.Header().Get("Location"); location != "/alerts/all" {
+		t.Fatalf(
+			"Location = %q; want /alerts/all",
+			location,
+		)
+	}
+
+	if alerts.writeCalls != 1 {
+		t.Fatalf(
+			"Write calls = %d; want 1",
+			alerts.writeCalls,
+		)
+	}
+
+	if alerts.writeTarget != "all" {
+		t.Fatalf(
+			"Write target = %q; want all",
+			alerts.writeTarget,
+		)
+	}
+
+	if alerts.writeMessage != "Updated" {
+		t.Fatalf(
+			"Write message = %q; want Updated",
+			alerts.writeMessage,
+		)
+	}
+}
+
+func TestHandlerRejectsMutationWithoutOrigin(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/all",
+		"Updated",
+		"",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusForbidden,
+		)
+	}
+
+	if alerts.writeCalls != 0 {
+		t.Fatal("Write called without Origin")
+	}
+}
+
+func TestHandlerRejectsMutationFromDifferentOrigin(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/all",
+		"Updated",
+		"http://node.local.mesh",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusForbidden,
+		)
+	}
+
+	if alerts.writeCalls != 0 {
+		t.Fatal("Write called for mismatched Origin")
+	}
+}
+
+func TestHandlerRejectsOversizedMutationBody(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/all",
+		strings.Repeat(
+			"x",
+			int(maxMutationBodyBytes)+1,
+		),
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusBadRequest,
+		)
+	}
+
+	if alerts.writeCalls != 0 {
+		t.Fatal("Write called for oversized body")
+	}
+}
+
+func TestHandlerMapsInvalidWriteToBadRequest(t *testing.T) {
+	alerts := &fakeLister{
+		writeErr: localcontrol.ErrInvalidRequest,
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/all",
+		"Invalid",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusBadRequest,
+		)
+	}
+}
+
+func TestHandlerMapsWriteConflict(t *testing.T) {
+	alerts := &fakeLister{
+		writeErr: &localcontrol.RemoteError{
+			Code:    localcontrol.ErrorLegacyConflict,
+			Message: "internal daemon detail",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/all",
+		"Updated",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusConflict,
+		)
+	}
+
+	if strings.Contains(
+		response.Body.String(),
+		"internal daemon detail",
+	) {
+		t.Fatal("response exposed daemon error detail")
+	}
+}
+
+func TestHandlerFailsClosedWhenWriteFails(t *testing.T) {
+	alerts := &fakeLister{
+		writeErr: localcontrol.ErrControlUnavailable,
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/all",
+		"Updated",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusServiceUnavailable,
+		)
+	}
+}
+
+func TestHandlerDoesNotWriteWithoutAuthentication(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{},
+		alerts,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313/alerts/all",
+		strings.NewReader("message=Updated"),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+	request.Header.Set(
+		"Origin",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusUnauthorized,
+		)
+	}
+
+	if alerts.writeCalls != 0 {
+		t.Fatal("Write called without authentication")
+	}
+}
+
+func TestHandlerEscapesManagedMessageInEditForm(t *testing.T) {
+	alerts := &fakeLister{
+		readResult: localcontrol.EntryResult{
+			Target:  "all",
+			Kind:    "managed",
+			Message: `</textarea><script>alert("x")</script>`,
+			Size:    38,
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/all",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	body := response.Body.String()
+
+	if strings.Contains(
+		body,
+		`</textarea><script>alert("x")</script>`,
+	) {
+		t.Fatal("managed message escaped textarea context")
+	}
+
+	if !strings.Contains(
+		body,
+		"&lt;/textarea&gt;",
+	) {
+		t.Fatal("managed message was not escaped in edit form")
 	}
 }
