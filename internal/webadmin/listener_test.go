@@ -6,9 +6,9 @@ import (
 )
 
 func TestProductionListenAddress(t *testing.T) {
-	if ProductionListenAddress != "0.0.0.0:11313" {
+	if ProductionListenAddress != "127.0.0.1:11313" {
 		t.Fatalf(
-			"ProductionListenAddress = %q; want 0.0.0.0:11313",
+			"ProductionListenAddress = %q; want 127.0.0.1:11313",
 			ProductionListenAddress,
 		)
 	}

@@ -5,7 +5,7 @@ import (
 	"net"
 )
 
-const ProductionListenAddress = "0.0.0.0:11313"
+const ProductionListenAddress = "127.0.0.1:11313"
 
 func ListenProduction() (net.Listener, error) {
 	listener, err := net.Listen(
