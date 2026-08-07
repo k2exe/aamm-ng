@@ -1,0 +1,43 @@
+#!/bin/sh /etc/rc.common
+
+START=95
+STOP=10
+
+USE_PROCD=1
+
+PROG=/usr/sbin/aamm-ng
+ALERT_ROOT=/www/aam
+BACKUP_ROOT=/var/lib/aamm-ng/backups
+RUNTIME_DIR=/run/aamm-ng
+
+prepare_directories() {
+	mkdir -p "$ALERT_ROOT" || return 1
+	chown root:aamm-ng "$ALERT_ROOT" || return 1
+	chmod 0775 "$ALERT_ROOT" || return 1
+
+	mkdir -p "$BACKUP_ROOT" || return 1
+	chown aamm-ng:aamm-ng "$BACKUP_ROOT" || return 1
+	chmod 0700 "$BACKUP_ROOT" || return 1
+
+	mkdir -p "$RUNTIME_DIR" || return 1
+	chown aamm-ng:aamm-ng-control "$RUNTIME_DIR" || return 1
+	chmod 2750 "$RUNTIME_DIR" || return 1
+}
+
+start_service() {
+	prepare_directories || return 1
+
+	procd_open_instance
+	procd_set_param command \
+		"$PROG" \
+		--alert-root "$ALERT_ROOT" \
+		--backup-root "$BACKUP_ROOT"
+
+	procd_set_param user aamm-ng
+	procd_set_param group aamm-ng
+
+	procd_set_param respawn
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
