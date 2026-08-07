@@ -287,7 +287,7 @@ var landingTemplate = template.Must(
 </head>
 <body>
 <main>
-<h1>AREDN Alert Message Manager</h1>
+<h1>AREDN Alert Message Manager NG</h1>
 
 <h2>Alerts</h2>
 {{if .Entries}}
