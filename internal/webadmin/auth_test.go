@@ -252,6 +252,13 @@ func TestRequireAdminSetsNoStoreHeaders(t *testing.T) {
 		)
 	}
 
+	if got := response.Header().Get("Referrer-Policy"); got != "same-origin" {
+		t.Fatalf(
+			"Referrer-Policy = %q; want same-origin",
+			got,
+		)
+	}
+
 	if got := response.Header().Get("X-Content-Type-Options"); got != "nosniff" {
 		t.Fatalf(
 			"X-Content-Type-Options = %q; want nosniff",
