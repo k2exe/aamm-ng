@@ -26,6 +26,7 @@ func TestServeListRoundTrip(t *testing.T) {
 			ctx,
 			socketPath,
 			&fakeStore{},
+			nil,
 		)
 	}()
 
@@ -78,6 +79,7 @@ func TestServeCreatesSocketMode0660(t *testing.T) {
 			ctx,
 			socketPath,
 			&fakeStore{},
+			nil,
 		)
 	}()
 
@@ -110,6 +112,7 @@ func TestServeRejectsRuntimeDirWithoutSetgid(t *testing.T) {
 		context.Background(),
 		filepath.Join(dir, "aamm-ng.sock"),
 		&fakeStore{},
+		nil,
 	)
 
 	if !errors.Is(err, ErrUnsafeRuntimeDir) {
@@ -135,6 +138,7 @@ func TestServeDoesNotRemoveExistingPath(t *testing.T) {
 		context.Background(),
 		socketPath,
 		&fakeStore{},
+		nil,
 	)
 
 	if !errors.Is(err, ErrSocketPathExists) {
@@ -167,6 +171,7 @@ func TestServeRejectsRequestWithoutNewline(t *testing.T) {
 			ctx,
 			socketPath,
 			&fakeStore{},
+			nil,
 		)
 	}()
 
@@ -229,6 +234,7 @@ func TestServeRejectsOversizedRequest(t *testing.T) {
 			ctx,
 			socketPath,
 			&fakeStore{},
+			nil,
 		)
 	}()
 
@@ -283,6 +289,7 @@ func TestServeRemovesSocketOnCleanShutdown(t *testing.T) {
 			ctx,
 			socketPath,
 			&fakeStore{},
+			nil,
 		)
 	}()
 
@@ -302,6 +309,53 @@ func TestServeRemovesSocketOnCleanShutdown(t *testing.T) {
 			"socket still exists after shutdown: %v",
 			err,
 		)
+	}
+}
+
+func TestServeSignalsReadyAfterSocketSetup(t *testing.T) {
+	socketPath := testSocketPath(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ready := make(chan struct{})
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- Serve(
+			ctx,
+			socketPath,
+			&fakeStore{},
+			ready,
+		)
+	}()
+
+	select {
+	case <-ready:
+	case <-time.After(time.Second):
+		t.Fatal("Serve() did not signal readiness")
+	}
+
+	info, err := os.Lstat(socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Mode()&os.ModeSocket == 0 {
+		t.Fatal("ready signaled before Unix socket existed")
+	}
+
+	if got := info.Mode().Perm(); got != 0660 {
+		t.Fatalf(
+			"socket mode = %04o after readiness; want 0660",
+			got,
+		)
+	}
+
+	cancel()
+
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
 	}
 }
 

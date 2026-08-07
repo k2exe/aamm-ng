@@ -32,6 +32,7 @@ func Serve(
 	ctx context.Context,
 	socketPath string,
 	store Store,
+	ready chan<- struct{},
 ) error {
 	runtimeGID, err := validateRuntimeDir(socketPath)
 	if err != nil {
@@ -63,6 +64,10 @@ func Serve(
 
 	if err := validateSocket(socketPath, runtimeGID); err != nil {
 		return err
+	}
+
+	if ready != nil {
+		close(ready)
 	}
 
 	done := make(chan struct{})
