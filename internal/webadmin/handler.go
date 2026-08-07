@@ -1,11 +1,21 @@
 package webadmin
 
 import (
-	"io"
+	"context"
+	"html/template"
 	"net/http"
+
+	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
-func NewHandler(verifier SessionVerifier) http.Handler {
+type AlertLister interface {
+	List(context.Context) (localcontrol.ListResult, error)
+}
+
+func NewHandler(
+	verifier SessionVerifier,
+	lister AlertLister,
+) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(
@@ -29,6 +39,17 @@ func NewHandler(verifier SessionVerifier) http.Handler {
 			return
 		}
 
+		if lister == nil {
+			managementUnavailable(writer)
+			return
+		}
+
+		listing, err := lister.List(request.Context())
+		if err != nil {
+			managementUnavailable(writer)
+			return
+		}
+
 		writer.Header().Set(
 			"Content-Type",
 			"text/html; charset=utf-8",
@@ -39,13 +60,33 @@ func NewHandler(verifier SessionVerifier) http.Handler {
 			return
 		}
 
-		_, _ = io.WriteString(writer, landingPage)
+		_ = landingTemplate.Execute(
+			writer,
+			pageData{
+				Entries: listing.Entries,
+				Issues:  listing.Issues,
+			},
+		)
 	})
 
 	return RequireAdmin(verifier, mux)
 }
 
-const landingPage = `<!doctype html>
+func managementUnavailable(writer http.ResponseWriter) {
+	http.Error(
+		writer,
+		"AAMM-NG control service unavailable.",
+		http.StatusServiceUnavailable,
+	)
+}
+
+type pageData struct {
+	Entries []localcontrol.EntryResult
+	Issues  []localcontrol.IssueResult
+}
+
+var landingTemplate = template.Must(
+	template.New("landing").Parse(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -55,8 +96,53 @@ const landingPage = `<!doctype html>
 <body>
 <main>
 <h1>AREDN Alert Message Manager</h1>
-<p>AAMM-NG management interface.</p>
+
+<h2>Alerts</h2>
+{{if .Entries}}
+<table>
+<thead>
+<tr>
+<th scope="col">Target</th>
+<th scope="col">Type</th>
+<th scope="col">Message</th>
+<th scope="col">Size</th>
+</tr>
+</thead>
+<tbody>
+{{range .Entries}}
+<tr>
+<td>{{.Target}}</td>
+<td>{{.Kind}}</td>
+<td>
+{{if eq .Kind "managed"}}
+{{.Message}}
+{{else if eq .Kind "legacy"}}
+Legacy alert — conversion required
+{{else if eq .Kind "oversized"}}
+Oversized alert — manual review required
+{{else}}
+Unknown alert type
+{{end}}
+</td>
+<td>{{.Size}} bytes</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{else}}
+<p>No alert files found.</p>
+{{end}}
+
+{{if .Issues}}
+<h2>Inspection issues</h2>
+<ul>
+{{range .Issues}}
+<li>{{.Name}}: {{.Kind}}</li>
+{{end}}
+</ul>
+{{end}}
 </main>
 </body>
 </html>
-`
+`),
+)
