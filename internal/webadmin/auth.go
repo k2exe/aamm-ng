@@ -46,7 +46,13 @@ func RequireAdmin(
 
 func setAuthResponseHeaders(writer http.ResponseWriter) {
 	writer.Header().Set("Cache-Control", "no-store")
+	writer.Header().Set(
+		"Content-Security-Policy",
+		"default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+	)
+	writer.Header().Set("Referrer-Policy", "no-referrer")
 	writer.Header().Set("X-Content-Type-Options", "nosniff")
+	writer.Header().Set("X-Frame-Options", "DENY")
 }
 
 func unauthorized(writer http.ResponseWriter) {
