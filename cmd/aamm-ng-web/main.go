@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/k2exe/aamm-ng/internal/arednauth"
+	"github.com/k2exe/aamm-ng/internal/cgibridge"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 	"github.com/k2exe/aamm-ng/internal/webadmin"
 )
@@ -17,6 +18,33 @@ import (
 type listenerFactory func() (net.Listener, error)
 
 func main() {
+	mode, err := parseMode(os.Args[1:])
+	if err != nil {
+		fmt.Fprintln(
+			os.Stderr,
+			"usage: aamm-ng-web [--cgi]",
+		)
+		os.Exit(2)
+	}
+
+	if mode == modeCGI {
+		if err := cgibridge.Run(
+			context.Background(),
+			os.Stdin,
+			os.Stdout,
+			os.Getenv,
+		); err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"aamm-ng-web CGI: %v\n",
+				err,
+			)
+			os.Exit(1)
+		}
+
+		return
+	}
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
