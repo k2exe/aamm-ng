@@ -2,11 +2,11 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=aamm-ng
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/k2exe/aamm-ng.git
-PKG_SOURCE_VERSION:=02ab637fadefd016403439477c3c26bd22ad47c0
+PKG_SOURCE_VERSION:=0da5940a58ea60d64ff9855ed22819e4c7df0da1
 PKG_MIRROR_HASH:=skip
 
 PKG_LICENSE:=Apache-2.0
@@ -57,6 +57,18 @@ define Package/aamm-ng/install
 	$(INSTALL_BIN) \
 		./files/aamm-ng-web.init \
 		$(1)/etc/init.d/aamm-ng-web
+
+	$(INSTALL_DIR) $(1)/www/cgi-bin/apps/AAMM-NG
+
+	$(INSTALL_BIN) \
+		./files/aamm-ng-app-admin \
+		$(1)/www/cgi-bin/apps/AAMM-NG/admin
+
+	$(INSTALL_DIR) $(1)/www/apps/AAMM-NG
+
+	$(INSTALL_DATA) \
+		./files/aamm-ng-icon.svg \
+		$(1)/www/apps/AAMM-NG/icon.svg
 endef
 
 $(eval $(call BuildPackage,aamm-ng))

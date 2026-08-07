@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 64 64"
+    role="img"
+    aria-labelledby="title"
+>
+  <title id="title">AAMM-NG</title>
+
+  <!-- Mesh links -->
+  <g
+      fill="none"
+      stroke="#2f3e46"
+      stroke-width="4"
+      stroke-linecap="round"
+  >
+    <path d="M15 18 L32 31 L49 18"/>
+    <path d="M15 18 L17 45 L32 31 L47 45 L49 18"/>
+  </g>
+
+  <!-- Mesh nodes -->
+  <g fill="#2f3e46">
+    <circle cx="15" cy="18" r="6"/>
+    <circle cx="49" cy="18" r="6"/>
+    <circle cx="17" cy="45" r="6"/>
+    <circle cx="47" cy="45" r="6"/>
+  </g>
+
+  <!-- Alert/message center -->
+  <circle
+      cx="32"
+      cy="31"
+      r="11"
+      fill="#ffffff"
+      stroke="#b42318"
+      stroke-width="4"
+  />
+
+  <path
+      d="M32 24 V32"
+      stroke="#b42318"
+      stroke-width="4"
+      stroke-linecap="round"
+  />
+
+  <circle
+      cx="32"
+      cy="37"
+      r="2.25"
+      fill="#b42318"
+  />
+</svg>
