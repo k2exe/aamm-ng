@@ -15,6 +15,7 @@ type AlertManager interface {
 	List(context.Context) (localcontrol.ListResult, error)
 	Read(context.Context, string) (localcontrol.EntryResult, error)
 	Write(context.Context, string, string) (localcontrol.WriteResult, error)
+	Convert(context.Context, string, string) (localcontrol.ConvertResult, error)
 }
 
 func NewHandler(
@@ -71,6 +72,46 @@ func NewHandler(
 				Entries: listing.Entries,
 				Issues:  listing.Issues,
 			},
+		)
+	})
+
+	mux.HandleFunc("/alerts/{target}/convert", func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		if request.Method != http.MethodPost {
+			writer.Header().Set("Allow", "POST")
+			http.Error(
+				writer,
+				"Method not allowed.",
+				http.StatusMethodNotAllowed,
+			)
+			return
+		}
+
+		if !sameOrigin(request) {
+			forbidden(writer)
+			return
+		}
+
+		target, err := alerttarget.Parse(
+			request.PathValue("target"),
+		)
+		if err != nil {
+			http.NotFound(writer, request)
+			return
+		}
+
+		if alerts == nil {
+			managementUnavailable(writer)
+			return
+		}
+
+		handleAlertConvert(
+			writer,
+			request,
+			alerts,
+			target,
 		)
 	})
 
@@ -273,6 +314,15 @@ var detailTemplate = template.Must(
 <h2>Legacy source</h2>
 <p>This legacy alert must be converted before AAMM-NG can manage it.</p>
 <pre>{{.LegacySource}}</pre>
+
+<h2>Convert to managed alert</h2>
+<p>The original legacy alert will be backed up before conversion.</p>
+<form method="post" action="/alerts/{{.Target}}/convert">
+<label for="message">Replacement alert message</label><br>
+<textarea id="message" name="message" rows="8" cols="72" required></textarea>
+<p>Maximum 4096 bytes.</p>
+<button type="submit">Convert alert</button>
+</form>
 {{else if eq .Kind "oversized"}}
 <p>Oversized alert — manual review required.</p>
 {{else}}

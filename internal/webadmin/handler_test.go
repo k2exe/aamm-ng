@@ -497,6 +497,12 @@ type fakeLister struct {
 	writeCalls   int
 	writeTarget  string
 	writeMessage string
+
+	convertResult  localcontrol.ConvertResult
+	convertErr     error
+	convertCalls   int
+	convertTarget  string
+	convertMessage string
 }
 
 func (lister *fakeLister) List(
@@ -527,6 +533,18 @@ func (lister *fakeLister) Write(
 	lister.writeMessage = message
 
 	return lister.writeResult, lister.writeErr
+}
+
+func (lister *fakeLister) Convert(
+	_ context.Context,
+	target string,
+	message string,
+) (localcontrol.ConvertResult, error) {
+	lister.convertCalls++
+	lister.convertTarget = target
+	lister.convertMessage = message
+
+	return lister.convertResult, lister.convertErr
 }
 
 var _ AlertManager = (*fakeLister)(nil)
@@ -1232,5 +1250,352 @@ func TestHandlerEscapesManagedMessageInEditForm(t *testing.T) {
 		"&lt;/textarea&gt;",
 	) {
 		t.Fatal("managed message was not escaped in edit form")
+	}
+}
+
+func TestHandlerShowsLegacyConversionForm(t *testing.T) {
+	alerts := &fakeLister{
+		readResult: localcontrol.EntryResult{
+			Target:       "legacy",
+			Kind:         "legacy",
+			LegacySource: "<b>Old alert</b>",
+			Size:         16,
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/legacy",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusOK,
+		)
+	}
+
+	body := response.Body.String()
+
+	if !strings.Contains(
+		body,
+		`action="/alerts/legacy/convert"`,
+	) {
+		t.Fatal("legacy conversion form missing")
+	}
+
+	if !strings.Contains(
+		body,
+		"original legacy alert will be backed up",
+	) {
+		t.Fatal("backup notice missing")
+	}
+}
+
+func TestHandlerConvertsLegacyAlert(t *testing.T) {
+	alerts := &fakeLister{
+		convertResult: localcontrol.ConvertResult{
+			Target:     "legacy",
+			Kind:       "managed",
+			BackupName: "legacy.txt.backup",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/LEGACY/convert",
+		"Replacement message",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusSeeOther,
+		)
+	}
+
+	if location := response.Header().Get("Location"); location != "/alerts/legacy" {
+		t.Fatalf(
+			"Location = %q; want /alerts/legacy",
+			location,
+		)
+	}
+
+	if alerts.convertCalls != 1 {
+		t.Fatalf(
+			"Convert calls = %d; want 1",
+			alerts.convertCalls,
+		)
+	}
+
+	if alerts.convertTarget != "legacy" {
+		t.Fatalf(
+			"Convert target = %q; want legacy",
+			alerts.convertTarget,
+		)
+	}
+
+	if alerts.convertMessage != "Replacement message" {
+		t.Fatalf(
+			"Convert message = %q; want Replacement message",
+			alerts.convertMessage,
+		)
+	}
+}
+
+func TestHandlerRejectsConversionWithoutOrigin(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/legacy/convert",
+		"Replacement",
+		"",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusForbidden,
+		)
+	}
+
+	if alerts.convertCalls != 0 {
+		t.Fatal("Convert called without Origin")
+	}
+}
+
+func TestHandlerRejectsConversionFromDifferentOrigin(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/legacy/convert",
+		"Replacement",
+		"http://node.local.mesh",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusForbidden,
+		)
+	}
+
+	if alerts.convertCalls != 0 {
+		t.Fatal("Convert called for mismatched Origin")
+	}
+}
+
+func TestHandlerRejectsInvalidConversionMessage(t *testing.T) {
+	alerts := &fakeLister{
+		convertErr: localcontrol.ErrInvalidRequest,
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/legacy/convert",
+		"",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusBadRequest,
+		)
+	}
+}
+
+func TestHandlerMapsConversionConflict(t *testing.T) {
+	alerts := &fakeLister{
+		convertErr: &localcontrol.RemoteError{
+			Code:    localcontrol.ErrorManagedConflict,
+			Message: "internal daemon detail",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedMutationRequest(
+		t,
+		"/alerts/legacy/convert",
+		"Replacement",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusConflict,
+		)
+	}
+
+	if strings.Contains(
+		response.Body.String(),
+		"internal daemon detail",
+	) {
+		t.Fatal("response exposed daemon error detail")
+	}
+}
+
+func TestHandlerDoesNotConvertWithoutAuthentication(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{},
+		alerts,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313/alerts/legacy/convert",
+		strings.NewReader("message=Replacement"),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+	request.Header.Set(
+		"Origin",
+		"http://node.local.mesh:11313",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusUnauthorized,
+		)
+	}
+
+	if alerts.convertCalls != 0 {
+		t.Fatal("Convert called without authentication")
+	}
+}
+
+func TestHandlerConversionEndpointAllowsPOSTOnly(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/legacy/convert",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusMethodNotAllowed,
+		)
+	}
+
+	if allow := response.Header().Get("Allow"); allow != "POST" {
+		t.Fatalf(
+			"Allow = %q; want POST",
+			allow,
+		)
+	}
+
+	if alerts.convertCalls != 0 {
+		t.Fatal("Convert called for GET")
+	}
+}
+
+func TestHandlerDoesNotShowConversionFormForManagedAlert(t *testing.T) {
+	alerts := &fakeLister{
+		readResult: localcontrol.EntryResult{
+			Target:  "all",
+			Kind:    "managed",
+			Message: "Net open",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/all",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if strings.Contains(
+		response.Body.String(),
+		"/alerts/all/convert",
+	) {
+		t.Fatal("managed alert exposed conversion form")
 	}
 }

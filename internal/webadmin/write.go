@@ -16,32 +16,25 @@ func handleAlertWrite(
 	alerts AlertManager,
 	target alerttarget.Target,
 ) {
-	request.Body = http.MaxBytesReader(
+	message, ok := mutationMessage(
 		writer,
-		request.Body,
-		maxMutationBodyBytes,
+		request,
 	)
-
-	if err := request.ParseForm(); err != nil {
-		invalidAlertUpdate(writer)
-		return
-	}
-
-	messages, ok := request.PostForm["message"]
-	if !ok ||
-		len(messages) != 1 ||
-		len(request.PostForm) != 1 {
-		invalidAlertUpdate(writer)
+	if !ok {
 		return
 	}
 
 	_, err := alerts.Write(
 		request.Context(),
 		target.String(),
-		messages[0],
+		message,
 	)
 	if err != nil {
-		handleWriteError(writer, request, err)
+		handleMutationError(
+			writer,
+			request,
+			err,
+		)
 		return
 	}
 
@@ -53,7 +46,33 @@ func handleAlertWrite(
 	)
 }
 
-func handleWriteError(
+func mutationMessage(
+	writer http.ResponseWriter,
+	request *http.Request,
+) (string, bool) {
+	request.Body = http.MaxBytesReader(
+		writer,
+		request.Body,
+		maxMutationBodyBytes,
+	)
+
+	if err := request.ParseForm(); err != nil {
+		invalidAlertUpdate(writer)
+		return "", false
+	}
+
+	messages, ok := request.PostForm["message"]
+	if !ok ||
+		len(messages) != 1 ||
+		len(request.PostForm) != 1 {
+		invalidAlertUpdate(writer)
+		return "", false
+	}
+
+	return messages[0], true
+}
+
+func handleMutationError(
 	writer http.ResponseWriter,
 	request *http.Request,
 	err error,
