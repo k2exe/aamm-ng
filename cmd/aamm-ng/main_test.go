@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/k2exe/aamm-ng/internal/alertstore"
+	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
 func TestParseConfigRequiresAlertRoot(t *testing.T) {
@@ -138,9 +139,43 @@ func TestRunFailsWhenBackupRootIsUnsafe(t *testing.T) {
 	}
 }
 
+func TestRunFailsWhenControlRuntimeDirIsUnsafe(t *testing.T) {
+	alertRoot := t.TempDir()
+	backupRoot := newBackupRoot(t)
+
+	runtimeDir := t.TempDir()
+
+	if err := os.Chmod(runtimeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	socketPath := filepath.Join(runtimeDir, "aamm-ng.sock")
+
+	err := runWithSocketPath(
+		context.Background(),
+		[]string{
+			"--alert-root",
+			alertRoot,
+			"--backup-root",
+			backupRoot,
+		},
+		io.Discard,
+		io.Discard,
+		socketPath,
+	)
+
+	if !errors.Is(err, localcontrol.ErrUnsafeRuntimeDir) {
+		t.Fatalf(
+			"runWithSocketPath() error = %v; want ErrUnsafeRuntimeDir",
+			err,
+		)
+	}
+}
+
 func TestRunStaysIdleUntilContextCancellation(t *testing.T) {
 	alertRoot := t.TempDir()
 	backupRoot := newBackupRoot(t)
+	socketPath := newControlSocketPath(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -153,7 +188,7 @@ func TestRunStaysIdleUntilContextCancellation(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- run(
+		done <- runWithSocketPath(
 			ctx,
 			[]string{
 				"--alert-root",
@@ -163,6 +198,7 @@ func TestRunStaysIdleUntilContextCancellation(t *testing.T) {
 			},
 			stdout,
 			io.Discard,
+			socketPath,
 		)
 	}()
 
@@ -231,6 +267,18 @@ func (writer *startWriter) String() string {
 	defer writer.mu.Unlock()
 
 	return writer.buffer.String()
+}
+
+func newControlSocketPath(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	if err := os.Chmod(dir, 0o750|os.ModeSetgid); err != nil {
+		t.Fatal(err)
+	}
+
+	return filepath.Join(dir, "aamm-ng.sock")
 }
 
 func newBackupRoot(t *testing.T) string {

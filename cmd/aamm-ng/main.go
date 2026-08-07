@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/k2exe/aamm-ng/internal/alertstore"
+	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
 type config struct {
@@ -47,6 +48,22 @@ func run(
 	stdout io.Writer,
 	stderr io.Writer,
 ) error {
+	return runWithSocketPath(
+		ctx,
+		args,
+		stdout,
+		stderr,
+		localcontrol.ProductionSocketPath,
+	)
+}
+
+func runWithSocketPath(
+	ctx context.Context,
+	args []string,
+	stdout io.Writer,
+	stderr io.Writer,
+	socketPath string,
+) error {
 	config, err := parseConfig(args, stderr)
 	if err != nil {
 		return err
@@ -60,9 +77,59 @@ func run(
 		return fmt.Errorf("startup: %w", err)
 	}
 
+	ready := make(chan struct{})
+	serverErr := make(chan error, 1)
+
+	go func() {
+		serverErr <- localcontrol.Serve(
+			ctx,
+			socketPath,
+			store,
+			ready,
+		)
+	}()
+
+	select {
+	case <-ready:
+	case err := <-serverErr:
+		startupErr := fmt.Errorf(
+			"startup: local control: %w",
+			err,
+		)
+
+		if closeErr := store.Close(); closeErr != nil {
+			return errors.Join(
+				startupErr,
+				fmt.Errorf(
+					"shutdown: close alert store: %w",
+					closeErr,
+				),
+			)
+		}
+
+		return startupErr
+	}
+
 	fmt.Fprintln(stdout, "AAMM-NG started")
 
-	<-ctx.Done()
+	if err := <-serverErr; err != nil {
+		serverFailure := fmt.Errorf(
+			"local control: %w",
+			err,
+		)
+
+		if closeErr := store.Close(); closeErr != nil {
+			return errors.Join(
+				serverFailure,
+				fmt.Errorf(
+					"shutdown: close alert store: %w",
+					closeErr,
+				),
+			)
+		}
+
+		return serverFailure
+	}
 
 	if err := store.Close(); err != nil {
 		return fmt.Errorf("shutdown: close alert store: %w", err)
