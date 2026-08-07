@@ -91,9 +91,15 @@ func listingResult(listing alertstore.Listing) ListResult {
 	}
 
 	for _, entry := range listing.Entries {
+		item := entryResult(entry)
+
+		// Listing intentionally omits legacy source. Retrieving legacy
+		// content requires an explicit read operation for that target.
+		item.LegacySource = ""
+
 		result.Entries = append(
 			result.Entries,
-			entryResult(entry),
+			item,
 		)
 	}
 
