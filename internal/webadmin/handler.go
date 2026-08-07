@@ -70,8 +70,9 @@ func NewHandler(
 		_ = landingTemplate.Execute(
 			writer,
 			pageData{
-				Entries: listing.Entries,
-				Issues:  listing.Issues,
+				BasePath: requestBasePath(request),
+				Entries:  listing.Entries,
+				Issues:   listing.Issues,
 			},
 		)
 	})
@@ -258,7 +259,13 @@ func NewHandler(
 			return
 		}
 
-		_ = detailTemplate.Execute(writer, entry)
+		_ = detailTemplate.Execute(
+			writer,
+			detailPageData{
+				EntryResult: entry,
+				BasePath:    requestBasePath(request),
+			},
+		)
 	})
 
 	return RequireAdmin(verifier, mux)
@@ -273,8 +280,14 @@ func managementUnavailable(writer http.ResponseWriter) {
 }
 
 type pageData struct {
-	Entries []localcontrol.EntryResult
-	Issues  []localcontrol.IssueResult
+	BasePath string
+	Entries  []localcontrol.EntryResult
+	Issues   []localcontrol.IssueResult
+}
+
+type detailPageData struct {
+	localcontrol.EntryResult
+	BasePath string
 }
 
 var landingTemplate = template.Must(
@@ -303,7 +316,7 @@ var landingTemplate = template.Must(
 <tbody>
 {{range .Entries}}
 <tr>
-<td><a href="/alerts/{{.Target}}">{{.Target}}</a></td>
+<td><a href="{{$.BasePath}}/alerts/{{.Target}}">{{.Target}}</a></td>
 <td>{{.Kind}}</td>
 <td>
 {{if eq .Kind "managed"}}
@@ -350,7 +363,7 @@ var deleteTemplate = template.Must(
 </head>
 <body>
 <main>
-<p><a href="/alerts/{{.Target}}">Back to alert</a></p>
+<p><a href="{{.BasePath}}/alerts/{{.Target}}">Back to alert</a></p>
 
 <h1>Delete alert: {{.Target}}</h1>
 
@@ -366,7 +379,7 @@ AAMM-NG will create a backup before deletion.
 <dd>{{.Size}} bytes</dd>
 </dl>
 
-<form method="post" action="/alerts/{{.Target}}/delete">
+<form method="post" action="{{.BasePath}}/alerts/{{.Target}}/delete">
 <label for="confirm">
 Type <strong>{{.Target}}</strong> to confirm deletion:
 </label><br>
@@ -395,7 +408,7 @@ var detailTemplate = template.Must(
 </head>
 <body>
 <main>
-<p><a href="/">Back to alerts</a></p>
+<p><a href="{{.BasePath}}/">Back to alerts</a></p>
 
 <h1>Alert: {{.Target}}</h1>
 
@@ -408,7 +421,7 @@ var detailTemplate = template.Must(
 
 {{if eq .Kind "managed"}}
 <h2>Message</h2>
-<form method="post" action="/alerts/{{.Target}}">
+<form method="post" action="{{.BasePath}}/alerts/{{.Target}}">
 <label for="message">Alert message</label><br>
 <textarea id="message" name="message" rows="8" cols="72" required>{{.Message}}</textarea>
 <p>Maximum 4096 bytes.</p>
@@ -421,7 +434,7 @@ var detailTemplate = template.Must(
 
 <h2>Convert to managed alert</h2>
 <p>The original legacy alert will be backed up before conversion.</p>
-<form method="post" action="/alerts/{{.Target}}/convert">
+<form method="post" action="{{.BasePath}}/alerts/{{.Target}}/convert">
 <label for="message">Replacement alert message</label><br>
 <textarea id="message" name="message" rows="8" cols="72" required></textarea>
 <p>Maximum 4096 bytes.</p>
@@ -433,7 +446,7 @@ var detailTemplate = template.Must(
 <p>Unknown alert type.</p>
 {{end}}
 
-<p><a href="/alerts/{{.Target}}/delete">Delete alert</a></p>
+<p><a href="{{.BasePath}}/alerts/{{.Target}}/delete">Delete alert</a></p>
 </main>
 </body>
 </html>

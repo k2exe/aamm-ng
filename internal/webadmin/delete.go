@@ -9,9 +9,10 @@ import (
 )
 
 type deletePageData struct {
-	Target string
-	Kind   string
-	Size   int64
+	Target   string
+	Kind     string
+	Size     int64
+	BasePath string
 }
 
 func handleDeleteConfirmation(
@@ -46,9 +47,10 @@ func handleDeleteConfirmation(
 	_ = deleteTemplate.Execute(
 		writer,
 		deletePageData{
-			Target: entry.Target,
-			Kind:   entry.Kind,
-			Size:   entry.Size,
+			Target:   entry.Target,
+			Kind:     entry.Kind,
+			Size:     entry.Size,
+			BasePath: requestBasePath(request),
 		},
 	)
 }
