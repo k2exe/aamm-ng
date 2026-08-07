@@ -173,3 +173,79 @@ func TestWriteResponsePreservesSecurityHeaders(t *testing.T) {
 		)
 	}
 }
+
+func TestNewRequestDoesNotForwardCGIStdinForGet(t *testing.T) {
+	request, err := newRequest(
+		context.Background(),
+		strings.NewReader("this must not become a GET body"),
+		func(name string) string {
+			switch name {
+			case "REQUEST_METHOD":
+				return "GET"
+			case "HTTP_HOST":
+				return "node.local.mesh"
+			default:
+				return ""
+			}
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if request.Body != http.NoBody {
+		t.Fatal(
+			"GET request unexpectedly forwards CGI stdin",
+		)
+	}
+
+	if request.ContentLength != 0 {
+		t.Fatalf(
+			"GET ContentLength = %d; want 0",
+			request.ContentLength,
+		)
+	}
+}
+
+func TestNewRequestStillForwardsCGIStdinForPost(t *testing.T) {
+	request, err := newRequest(
+		context.Background(),
+		strings.NewReader("message=test"),
+		func(name string) string {
+			switch name {
+			case "REQUEST_METHOD":
+				return "POST"
+			case "HTTP_HOST":
+				return "node.local.mesh"
+			case "CONTENT_TYPE":
+				return "application/x-www-form-urlencoded"
+			case "CONTENT_LENGTH":
+				return "12"
+			default:
+				return ""
+			}
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := string(body); got != "message=test" {
+		t.Fatalf(
+			"POST body = %q; want message=test",
+			got,
+		)
+	}
+
+	if request.ContentLength != 12 {
+		t.Fatalf(
+			"POST ContentLength = %d; want 12",
+			request.ContentLength,
+		)
+	}
+}

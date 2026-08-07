@@ -113,11 +113,16 @@ func newRequest(
 		RawQuery: getenv("QUERY_STRING"),
 	}
 
+	requestBody := body
+	if method != http.MethodPost {
+		requestBody = http.NoBody
+	}
+
 	request, err := http.NewRequestWithContext(
 		ctx,
 		method,
 		target.String(),
-		body,
+		requestBody,
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
