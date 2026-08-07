@@ -61,10 +61,15 @@ func TestHandlerRendersAuthenticatedAlertListing(t *testing.T) {
 	body := response.Body.String()
 
 	for _, expected := range []string{
-		"AREDN Alert Message Manager",
+		"Alert Message Manager",
 		"Net open",
-		"Legacy alert — conversion required",
+		"Existing alert — conversion required",
 		"Oversized alert — manual review required",
+		`href="/a/status"`,
+		`href="/a/css/theme.css"`,
+		`href="/a/css/user.css"`,
+		`href="/a/css/admin.css"`,
+		`href="/apps/AAMM-NG/aamm-ng.css"`,
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf(
@@ -159,11 +164,16 @@ func TestHandlerRendersInspectionIssuesWithoutMessage(t *testing.T) {
 
 	body := response.Body.String()
 
-	if !strings.Contains(
-		body,
-		"bad.txt: unsafe_entry",
-	) {
-		t.Fatal("inspection issue summary missing")
+	for _, expected := range []string{
+		"bad.txt",
+		"unsafe_entry",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"inspection issue summary missing %q",
+				expected,
+			)
+		}
 	}
 
 	if strings.Contains(
@@ -200,7 +210,7 @@ func TestHandlerReturnsEmptyListing(t *testing.T) {
 
 	if !strings.Contains(
 		response.Body.String(),
-		"No alert files found.",
+		"No alert files found",
 	) {
 		t.Fatal("empty listing message missing")
 	}

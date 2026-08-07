@@ -48,7 +48,7 @@ func setAuthResponseHeaders(writer http.ResponseWriter) {
 	writer.Header().Set("Cache-Control", "no-store")
 	writer.Header().Set(
 		"Content-Security-Policy",
-		"default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+		"default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
 	)
 	writer.Header().Set("Referrer-Policy", "same-origin")
 	writer.Header().Set("X-Content-Type-Options", "nosniff")

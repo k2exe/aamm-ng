@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=aamm-ng
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=3
+PKG_RELEASE:=5
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/k2exe/aamm-ng.git
@@ -69,6 +69,10 @@ define Package/aamm-ng/install
 	$(INSTALL_DATA) \
 		./files/aamm-ng-icon.svg \
 		$(1)/www/apps/AAMM-NG/icon.svg
+
+	$(INSTALL_DATA) \
+		./files/aamm-ng.css \
+		$(1)/www/apps/AAMM-NG/aamm-ng.css
 endef
 
 $(eval $(call BuildPackage,aamm-ng))

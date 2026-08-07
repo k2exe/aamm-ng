@@ -252,6 +252,24 @@ func TestRequireAdminSetsNoStoreHeaders(t *testing.T) {
 		)
 	}
 
+	csp := response.Header().Get("Content-Security-Policy")
+
+	for _, expected := range []string{
+		"default-src 'self'",
+		"img-src 'self' data:",
+		"object-src 'none'",
+		"frame-ancestors 'none'",
+		"form-action 'self'",
+	} {
+		if !strings.Contains(csp, expected) {
+			t.Fatalf(
+				"Content-Security-Policy missing %q: %q",
+				expected,
+				csp,
+			)
+		}
+	}
+
 	if got := response.Header().Get("Referrer-Policy"); got != "same-origin" {
 		t.Fatalf(
 			"Referrer-Policy = %q; want same-origin",

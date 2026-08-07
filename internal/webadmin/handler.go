@@ -297,57 +297,180 @@ var landingTemplate = template.Must(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AAMM-NG</title>
+
+<link rel="stylesheet" href="/a/css/theme.css">
+<link rel="stylesheet" href="/a/css/user.css">
+<link rel="stylesheet" href="/a/css/admin.css">
+<link rel="stylesheet" href="/apps/AAMM-NG/aamm-ng.css">
+
+<link rel="icon" type="image/svg+xml" href="/apps/AAMM-NG/icon.svg">
 </head>
-<body>
-<main>
-<h1>AREDN Alert Message Manager NG</h1>
 
-<h2>Alerts</h2>
-{{if .Entries}}
-<table>
-<thead>
-<tr>
-<th scope="col">Target</th>
-<th scope="col">Type</th>
-<th scope="col">Message</th>
-<th scope="col">Size</th>
-</tr>
-</thead>
-<tbody>
-{{range .Entries}}
-<tr>
-<td><a href="{{$.BasePath}}/alerts/{{.Target}}">{{.Target}}</a></td>
-<td>{{.Kind}}</td>
-<td>
-{{if eq .Kind "managed"}}
-{{.Message}}
-{{else if eq .Kind "legacy"}}
-Legacy alert — conversion required
-{{else if eq .Kind "oversized"}}
-Oversized alert — manual review required
-{{else}}
-Unknown alert type
-{{end}}
-</td>
-<td>{{.Size}} bytes</td>
-</tr>
-{{end}}
-</tbody>
-</table>
-{{else}}
-<p>No alert files found.</p>
-{{end}}
+<body class="authenticated">
+<div id="all">
 
-{{if .Issues}}
-<h2>Inspection issues</h2>
-<ul>
-{{range .Issues}}
-<li>{{.Name}}: {{.Kind}}</li>
-{{end}}
-</ul>
-{{end}}
+<div id="nav">
+	<a
+		class="aamm-brand-icon"
+		href="{{.BasePath}}/"
+		title="AAMM-NG dashboard"
+	>
+		<img src="/apps/AAMM-NG/icon.svg" alt="">
+	</a>
 
-</main>
+	<a class="nav-node-name" href="{{.BasePath}}/">
+		AAMM-NG
+	</a>
+
+	<div id="nav-status">
+		Alert Message Manager
+	</div>
+
+	<div class="aamm-nav-spacer"></div>
+
+	<a class="aamm-back-link" href="/a/status">
+		Back to AREDN Status
+	</a>
+</div>
+
+<div id="panel">
+
+	<div id="select">
+		<div>
+			<a
+				title="Back to AREDN status"
+				href="/a/status"
+			>
+				<div class="icon status"></div>
+			</a>
+
+			<hr>
+
+			<a
+				class="aamm-rail-link"
+				title="AAMM-NG alerts"
+				href="{{.BasePath}}/"
+			>
+				<img
+					class="aamm-rail-icon"
+					src="/apps/AAMM-NG/icon.svg"
+					alt=""
+				>
+			</a>
+		</div>
+	</div>
+
+	<div id="main">
+		<div id="main-container">
+			<div class="aamm-dashboard">
+
+				<div class="aamm-page-header">
+					<div>
+						<div class="aamm-page-title">
+							Alert Message Manager
+						</div>
+
+						<div class="aamm-page-subtitle">
+							Manage alert messages published by this AREDN node.
+						</div>
+					</div>
+
+					<div class="aamm-alert-count">
+						{{len .Entries}} alert{{if ne (len .Entries) 1}}s{{end}}
+					</div>
+				</div>
+
+				<div class="section">
+					<div class="section-title">
+						Current Alerts
+					</div>
+
+					{{if .Entries}}
+
+					<div class="aamm-alert-list">
+						{{range .Entries}}
+						<a
+							class="aamm-alert-row"
+							href="{{$.BasePath}}/alerts/{{.Target}}"
+						>
+							<div class="aamm-alert-target">
+								<div class="aamm-target-line">
+									<span class="t">{{.Target}}</span>
+
+									{{if eq .Kind "managed"}}
+									<span class="aamm-kind aamm-managed">
+										Managed
+									</span>
+									{{else if eq .Kind "legacy"}}
+									<span class="aamm-kind aamm-existing">
+										Existing
+									</span>
+									{{else if eq .Kind "oversized"}}
+									<span class="aamm-kind aamm-oversized">
+										Review
+									</span>
+									{{end}}
+								</div>
+
+								<div class="s">
+									{{.Size}} bytes
+								</div>
+							</div>
+
+							<div class="aamm-alert-message">
+								{{if eq .Kind "managed"}}
+									{{.Message}}
+								{{else if eq .Kind "legacy"}}
+									Existing alert — conversion required
+								{{else if eq .Kind "oversized"}}
+									Oversized alert — manual review required
+								{{else}}
+									Unknown alert type
+								{{end}}
+							</div>
+
+							<div class="aamm-row-arrow" aria-hidden="true">
+								›
+							</div>
+						</a>
+						{{end}}
+					</div>
+
+					{{else}}
+
+					<div class="aamm-empty-state">
+						<div class="t">No alert files found</div>
+						<div class="s">
+							This node does not currently have any AAM alert messages.
+						</div>
+					</div>
+
+					{{end}}
+				</div>
+
+				{{if .Issues}}
+				<div class="section">
+					<div class="section-title">
+						Inspection Issues
+					</div>
+
+					<div class="aamm-issues">
+						{{range .Issues}}
+						<div class="aamm-issue">
+							<span class="t">{{.Name}}</span>
+							<span class="s">{{.Kind}}</span>
+						</div>
+						{{end}}
+					</div>
+				</div>
+				{{end}}
+
+			</div>
+		</div>
+	</div>
+
+</div>
+</div>
 </body>
 </html>
 `),
