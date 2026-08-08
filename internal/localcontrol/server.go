@@ -17,9 +17,10 @@ import (
 const (
 	ProductionSocketPath = "/run/aamm-ng/aamm-ng.sock"
 
-	socketMode     = 0660
-	runtimeDirMode = 0750
-	ioTimeout      = 5 * time.Second
+	socketMode         = 0660
+	runtimeDirMode     = 0750
+	socketProbeTimeout = 250 * time.Millisecond
+	ioTimeout          = 5 * time.Second
 )
 
 var (
@@ -39,10 +40,8 @@ func Serve(
 		return err
 	}
 
-	if _, err := os.Lstat(socketPath); err == nil {
-		return ErrSocketPathExists
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("inspect control socket path: %w", err)
+	if err := prepareSocketPath(socketPath); err != nil {
+		return err
 	}
 
 	address := &net.UnixAddr{
@@ -94,6 +93,70 @@ func Serve(
 
 		handleConnection(connection, store)
 	}
+}
+
+func prepareSocketPath(socketPath string) error {
+	info, err := os.Lstat(socketPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf(
+			"inspect control socket path: %w",
+			err,
+		)
+	}
+
+	if info.Mode()&os.ModeSocket == 0 {
+		return ErrSocketPathExists
+	}
+
+	connection, probeErr := net.DialTimeout(
+		"unix",
+		socketPath,
+		socketProbeTimeout,
+	)
+	if probeErr == nil {
+		_ = connection.Close()
+		return ErrSocketPathExists
+	}
+
+	if errors.Is(probeErr, syscall.ENOENT) {
+		return nil
+	}
+
+	if !errors.Is(probeErr, syscall.ECONNREFUSED) {
+		return fmt.Errorf(
+			"%w: probe existing control socket: %v",
+			ErrSocketPathExists,
+			probeErr,
+		)
+	}
+
+	currentInfo, err := os.Lstat(socketPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf(
+			"reinspect stale control socket: %w",
+			err,
+		)
+	}
+
+	if currentInfo.Mode()&os.ModeSocket == 0 ||
+		!os.SameFile(info, currentInfo) {
+		return ErrSocketPathExists
+	}
+
+	if err := os.Remove(socketPath); err != nil {
+		return fmt.Errorf(
+			"remove stale control socket: %w",
+			err,
+		)
+	}
+
+	return nil
 }
 
 func handleConnection(
