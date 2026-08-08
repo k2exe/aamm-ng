@@ -8,13 +8,6 @@ import (
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
-type deletePageData struct {
-	Target   string
-	Kind     string
-	Size     int64
-	BasePath string
-}
-
 func handleDeleteConfirmation(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -34,6 +27,16 @@ func handleDeleteConfirmation(
 		return
 	}
 
+	var listing localcontrol.ListResult
+
+	if request.Method == http.MethodGet {
+		listing, err = alerts.List(request.Context())
+		if err != nil {
+			managementUnavailable(writer)
+			return
+		}
+	}
+
 	writer.Header().Set(
 		"Content-Type",
 		"text/html; charset=utf-8",
@@ -44,13 +47,15 @@ func handleDeleteConfirmation(
 		return
 	}
 
-	_ = deleteTemplate.Execute(
+	deleteModal := entry
+
+	_ = landingTemplate.Execute(
 		writer,
-		deletePageData{
-			Target:   entry.Target,
-			Kind:     entry.Kind,
-			Size:     entry.Size,
-			BasePath: requestBasePath(request),
+		pageData{
+			BasePath:    requestBasePath(request),
+			Entries:     listing.Entries,
+			Issues:      listing.Issues,
+			DeleteModal: &deleteModal,
 		},
 	)
 }

@@ -41,7 +41,7 @@ func handleAlertWrite(
 	http.Redirect(
 		writer,
 		request,
-		"/alerts/"+target.String(),
+		"/",
 		http.StatusSeeOther,
 	)
 }

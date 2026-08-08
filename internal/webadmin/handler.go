@@ -294,10 +294,11 @@ func managementUnavailable(writer http.ResponseWriter) {
 }
 
 type pageData struct {
-	BasePath string
-	Entries  []localcontrol.EntryResult
-	Issues   []localcontrol.IssueResult
-	Modal    *localcontrol.EntryResult
+	BasePath    string
+	Entries     []localcontrol.EntryResult
+	Issues      []localcontrol.IssueResult
+	Modal       *localcontrol.EntryResult
+	DeleteModal *localcontrol.EntryResult
 }
 
 var landingTemplate = template.Must(
@@ -437,6 +438,102 @@ var landingTemplate = template.Must(
 					{{if eq .Kind "managed"}}Save{{else}}Convert{{end}}
 				</button>
 				{{end}}
+			</div>
+		</div>
+
+	</div>
+</dialog>
+{{end}}
+
+{{with .DeleteModal}}
+<dialog
+	id="ctrl-modal"
+	data-return-url="{{$.BasePath}}/alerts/{{.Target}}"
+>
+	<div class="dialog">
+
+		<div>
+			<div class="t">Delete AAMM-NG Alert</div>
+			<div class="s">{{.Target}}</div>
+			<hr>
+		</div>
+
+		<div>
+			<div class="aamm-delete-warning">
+				<div class="o">Confirm deletion</div>
+				<div class="m">
+					This will remove the alert from this node.
+					AAMM-NG will create a backup before deletion.
+				</div>
+			</div>
+
+			<div class="aamm-modal-meta">
+				<div>
+					<div class="s">Target</div>
+					<div class="t aamm-modal-target">{{.Target}}</div>
+				</div>
+
+				<div>
+					<div class="s">Status</div>
+					<div>
+						{{if eq .Kind "managed"}}
+						<span class="aamm-kind aamm-managed">Managed</span>
+						{{else if eq .Kind "legacy"}}
+						<span class="aamm-kind aamm-existing">Existing</span>
+						{{else if eq .Kind "oversized"}}
+						<span class="aamm-kind aamm-oversized">Review</span>
+						{{end}}
+					</div>
+				</div>
+
+				<div>
+					<div class="s">Size</div>
+					<div>{{.Size}} bytes</div>
+				</div>
+			</div>
+
+			<hr>
+
+			<form
+				id="aamm-delete-form"
+				method="post"
+				action="{{$.BasePath}}/alerts/{{.Target}}/delete"
+			>
+				<div class="aamm-delete-confirm">
+					<label for="confirm">
+						Type <strong>{{.Target}}</strong> to confirm deletion:
+					</label>
+
+					<input
+						id="confirm"
+						name="confirm"
+						type="text"
+						autocomplete="off"
+						data-aamm-confirm-target="{{.Target}}"
+						required
+					>
+				</div>
+			</form>
+		</div>
+
+		<div class="ctrl-modal-footer">
+			<hr>
+
+			<div class="aamm-modal-actions">
+				<button type="button" data-aamm-close>
+					Cancel
+				</button>
+
+				<button
+					id="dialog-done"
+					class="aamm-danger-button"
+					type="submit"
+					form="aamm-delete-form"
+					data-aamm-delete-submit
+					disabled
+				>
+					Delete
+				</button>
 			</div>
 		</div>
 
@@ -608,51 +705,6 @@ var landingTemplate = template.Must(
 
 </div>
 </div>
-</body>
-</html>
-`),
-)
-
-var deleteTemplate = template.Must(
-	template.New("delete").Parse(`<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Delete {{.Target}} - AAMM-NG</title>
-</head>
-<body>
-<main>
-<p><a href="{{.BasePath}}/alerts/{{.Target}}">Back to alert</a></p>
-
-<h1>Delete alert: {{.Target}}</h1>
-
-<p>
-This will remove the alert from the node.
-AAMM-NG will create a backup before deletion.
-</p>
-
-<dl>
-<dt>Type</dt>
-<dd>{{.Kind}}</dd>
-<dt>Size</dt>
-<dd>{{.Size}} bytes</dd>
-</dl>
-
-<form method="post" action="{{.BasePath}}/alerts/{{.Target}}/delete">
-<label for="confirm">
-Type <strong>{{.Target}}</strong> to confirm deletion:
-</label><br>
-<input
-	id="confirm"
-	name="confirm"
-	type="text"
-	autocomplete="off"
-	required
->
-<button type="submit">Delete alert</button>
-</form>
-</main>
 </body>
 </html>
 `),

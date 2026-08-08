@@ -1062,9 +1062,9 @@ func TestHandlerWritesManagedAlert(t *testing.T) {
 		)
 	}
 
-	if location := response.Header().Get("Location"); location != "/alerts/all" {
+	if location := response.Header().Get("Location"); location != "/" {
 		t.Fatalf(
-			"Location = %q; want /alerts/all",
+			"Location = %q; want /",
 			location,
 		)
 	}
@@ -1451,9 +1451,9 @@ func TestHandlerConvertsLegacyAlert(t *testing.T) {
 		)
 	}
 
-	if location := response.Header().Get("Location"); location != "/alerts/legacy" {
+	if location := response.Header().Get("Location"); location != "/" {
 		t.Fatalf(
-			"Location = %q; want /alerts/legacy",
+			"Location = %q; want /",
 			location,
 		)
 	}
@@ -1783,29 +1783,38 @@ func TestHandlerShowsDeleteConfirmation(t *testing.T) {
 
 	body := response.Body.String()
 
-	if !strings.Contains(
-		body,
-		"Delete alert: all",
-	) {
-		t.Fatal("delete confirmation heading missing")
-	}
-
-	if !strings.Contains(
-		body,
+	for _, expected := range []string{
+		`id="ctrl-modal"`,
+		"Delete AAMM-NG Alert",
 		`action="/alerts/all/delete"`,
-	) {
-		t.Fatal("delete form missing")
-	}
-
-	if !strings.Contains(
-		body,
-		"AAMM-NG will create a backup before deletion",
-	) {
-		t.Fatal("backup notice missing")
+		`data-return-url="/alerts/all"`,
+		`data-aamm-confirm-target="all"`,
+		"AAMM-NG will create a backup before deletion.",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"delete confirmation modal missing %q",
+				expected,
+			)
+		}
 	}
 
 	if alerts.deleteCalls != 0 {
 		t.Fatal("Delete called while rendering confirmation")
+	}
+
+	if alerts.readCalls != 1 {
+		t.Fatalf(
+			"Read calls = %d; want 1",
+			alerts.readCalls,
+		)
+	}
+
+	if alerts.calls != 1 {
+		t.Fatalf(
+			"List calls = %d; want 1",
+			alerts.calls,
+		)
 	}
 }
 

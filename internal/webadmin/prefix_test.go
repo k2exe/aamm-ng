@@ -126,16 +126,21 @@ func TestAlertModalUsesAREDNBasePath(t *testing.T) {
 	}
 }
 
-func TestDeleteTemplateUsesAREDNBasePath(t *testing.T) {
+func TestDeleteModalUsesAREDNBasePath(t *testing.T) {
 	var output bytes.Buffer
 
-	err := deleteTemplate.Execute(
+	modal := localcontrol.EntryResult{
+		Target: "wx",
+		Kind:   "managed",
+		Size:   13,
+	}
+
+	err := landingTemplate.Execute(
 		&output,
-		deletePageData{
-			Target:   "wx",
-			Kind:     "managed",
-			Size:     13,
-			BasePath: arednAppBasePath,
+		pageData{
+			BasePath:    arednAppBasePath,
+			Entries:     []localcontrol.EntryResult{modal},
+			DeleteModal: &modal,
 		},
 	)
 	if err != nil {
@@ -143,14 +148,15 @@ func TestDeleteTemplateUsesAREDNBasePath(t *testing.T) {
 	}
 
 	checks := []string{
-		`href="` + arednAppBasePath + `/alerts/wx"`,
 		`action="` + arednAppBasePath + `/alerts/wx/delete"`,
+		`data-return-url="` + arednAppBasePath + `/alerts/wx"`,
+		`href="` + arednAppBasePath + `/alerts/wx"`,
 	}
 
 	for _, want := range checks {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf(
-				"delete output missing %q:\n%s",
+				"delete modal output missing %q:\n%s",
 				want,
 				output.String(),
 			)

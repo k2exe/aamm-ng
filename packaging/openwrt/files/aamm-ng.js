@@ -22,6 +22,20 @@
         returnToDashboard();
     });
 
+    const confirmation = modal.querySelector("[data-aamm-confirm-target]");
+    const deleteButton = modal.querySelector("[data-aamm-delete-submit]");
+
+    if (confirmation && deleteButton) {
+        const requiredTarget = confirmation.dataset.aammConfirmTarget || "";
+
+        function updateDeleteButton() {
+            deleteButton.disabled = confirmation.value !== requiredTarget;
+        }
+
+        confirmation.addEventListener("input", updateDeleteButton);
+        updateDeleteButton();
+    }
+
     if (typeof modal.showModal === "function") {
         modal.showModal();
     }

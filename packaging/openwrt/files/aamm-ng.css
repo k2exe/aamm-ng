@@ -277,3 +277,36 @@
         grid-template-columns: 1fr;
     }
 }
+
+
+.aamm-delete-warning
+{
+    margin-bottom: 18px;
+}
+
+.aamm-delete-confirm
+{
+    margin-top: 18px;
+}
+
+#ctrl-modal .aamm-delete-confirm input[type=text]
+{
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 8px;
+    text-align: left;
+}
+
+#ctrl-modal .aamm-danger-button:not(:disabled)
+{
+    color: var(--firmware-status-bg-color-negative);
+    border-color: var(--firmware-status-bg-color-negative);
+    background-color: transparent;
+}
+
+#ctrl-modal .aamm-danger-button:hover:not(:disabled)
+{
+    color: var(--ctrl-modal-bg-color);
+    background-color: var(--firmware-status-bg-color-negative);
+}
