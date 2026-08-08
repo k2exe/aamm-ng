@@ -1,0 +1,321 @@
+name: AREDN Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aamm-ng-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AREDN_REF: "4.26.7.0"
+  AREDN_COMMIT: "93ad9ea94fb2c0edd829c513305ffbaa90c07858"
+
+jobs:
+  validate:
+    name: Validate release source
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Validate release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(
+            sed -n 's/^PKG_VERSION:=//p' \
+              packaging/openwrt/Makefile
+          )"
+
+          release="$(
+            sed -n 's/^PKG_RELEASE:=//p' \
+              packaging/openwrt/Makefile
+          )"
+
+          source="$(
+            sed -n 's/^PKG_SOURCE_VERSION:=//p' \
+              packaging/openwrt/Makefile
+          )"
+
+          test -n "$version"
+          test -n "$release"
+          test -n "$source"
+
+          echo "Package: ${version}-r${release}"
+          echo "Source:  ${source}"
+          echo "AREDN:   ${AREDN_REF}"
+
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "invalid release tag: $GITHUB_REF_NAME" >&2
+              exit 1
+            fi
+
+            tag_version="${GITHUB_REF_NAME#v}"
+
+            if [[ "$tag_version" != "$version" ]]; then
+              echo \
+                "tag version ${tag_version} does not match package version ${version}" \
+                >&2
+              exit 1
+            fi
+
+            if [[ ! "$source" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "PKG_SOURCE_VERSION must be a full Git commit SHA" >&2
+              exit 1
+            fi
+
+            if ! git cat-file -e "${source}^{commit}" 2>/dev/null; then
+              echo "package source commit does not exist: ${source}" >&2
+              exit 1
+            fi
+
+            if ! git merge-base --is-ancestor "$source" "$GITHUB_SHA"; then
+              echo \
+                "package source ${source} is not an ancestor of release ${GITHUB_SHA}" \
+                >&2
+              exit 1
+            fi
+
+            changed_files="$(
+              git diff --name-only "$source" "$GITHUB_SHA"
+            )"
+
+            if [[ "$changed_files" != "packaging/openwrt/Makefile" ]]; then
+              echo \
+                "release metadata commit contains changes outside packaging/openwrt/Makefile" \
+                >&2
+              printf '%s\n' "$changed_files" >&2
+              exit 1
+            fi
+
+            if ! diff -u \
+              <(
+                git show "${source}:packaging/openwrt/Makefile" |
+                  grep -vE '^PKG_(RELEASE|SOURCE_VERSION):='
+              ) \
+              <(
+                grep -vE \
+                  '^PKG_(RELEASE|SOURCE_VERSION):=' \
+                  packaging/openwrt/Makefile
+              ); then
+              echo \
+                "release metadata commit changes package fields other than PKG_RELEASE or PKG_SOURCE_VERSION" \
+                >&2
+              exit 1
+            fi
+
+            echo "Release source boundary verified."
+          fi
+
+      - name: Verify module is tidy
+        shell: bash
+        run: |
+          set -euo pipefail
+          go mod tidy
+          git diff --exit-code
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Validate build script
+        run: bash -n scripts/build-aredn-apk.sh
+
+
+  build:
+    name: Build ${{ matrix.arch }}
+    needs: validate
+    runs-on: ubuntu-latest
+
+    container:
+      image: arednmesh/builder@sha256:33799067387d0d88c362f7c47fb1c0382426bc8ad608a5ecc41f3d50eb6be317
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ath79-generic
+            arch: mips_24kc
+
+          - target: ipq40xx-mikrotik
+            arch: arm_cortex-a7_neon-vfpv4
+
+          - target: ramips-mt7621
+            arch: mipsel_24kc
+
+          - target: mediatek-filogic
+            arch: aarch64_cortex-a53
+
+          - target: x86-64
+            arch: x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Build and verify APK
+        shell: bash
+        run: |
+          scripts/build-aredn-apk.sh \
+            "${{ matrix.target }}" \
+            "${{ matrix.arch }}"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: aamm-ng-${{ matrix.arch }}
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs:
+      - validate
+      - build
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Download APKs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: aamm-ng-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify release set
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t apks < <(
+            find dist \
+              -maxdepth 1 \
+              -type f \
+              -name 'aamm-ng-*.apk' \
+              -print |
+            sort
+          )
+
+          if [[ "${#apks[@]}" -ne 5 ]]; then
+            echo \
+              "expected 5 APKs, found ${#apks[@]}" \
+              >&2
+            printf '%s\n' "${apks[@]}"
+            exit 1
+          fi
+
+          printf '%s\n' "${apks[@]}"
+
+          (
+            cd dist
+            sha256sum *.apk |
+              sort -k2 \
+              > SHA256SUMS
+          )
+
+          version="$(
+            sed -n 's/^PKG_VERSION:=//p' \
+              packaging/openwrt/Makefile
+          )"
+
+          release="$(
+            sed -n 's/^PKG_RELEASE:=//p' \
+              packaging/openwrt/Makefile
+          )"
+
+          source="$(
+            sed -n 's/^PKG_SOURCE_VERSION:=//p' \
+              packaging/openwrt/Makefile
+          )"
+
+          expected_apks=(
+            "aamm-ng-${version}-r${release}-mips_24kc.apk"
+            "aamm-ng-${version}-r${release}-arm_cortex-a7_neon-vfpv4.apk"
+            "aamm-ng-${version}-r${release}-mipsel_24kc.apk"
+            "aamm-ng-${version}-r${release}-aarch64_cortex-a53.apk"
+            "aamm-ng-${version}-r${release}-x86_64.apk"
+          )
+
+          mapfile -t actual_apks < <(
+            printf '%s\n' "${apks[@]}" |
+              sed 's#^dist/##' |
+              sort
+          )
+
+          mapfile -t expected_apks_sorted < <(
+            printf '%s\n' "${expected_apks[@]}" |
+              sort
+          )
+
+          if ! diff -u \
+            <(printf '%s\n' "${expected_apks_sorted[@]}") \
+            <(printf '%s\n' "${actual_apks[@]}"); then
+            echo "release APK set does not match expected architectures" >&2
+            exit 1
+          fi
+
+          echo "Exact release APK set verified."
+
+          {
+            echo "AAMM-NG release: ${GITHUB_REF_NAME}"
+            echo "Package: ${version}-r${release}"
+            echo "Package source commit: ${source}"
+            echo "Release tag commit: ${GITHUB_SHA}"
+            echo "AREDN build baseline: ${AREDN_REF}"
+            echo "AREDN source commit: ${AREDN_COMMIT}"
+          } > dist/BUILD-INFO.txt
+
+          echo
+          echo "=== SHA256SUMS ==="
+          cat dist/SHA256SUMS
+
+          echo
+          echo "=== BUILD-INFO ==="
+          cat dist/BUILD-INFO.txt
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh release create \
+            "$GITHUB_REF_NAME" \
+            dist/*.apk \
+            dist/SHA256SUMS \
+            dist/BUILD-INFO.txt \
+            --verify-tag \
+            --generate-notes \
+            --title "AAMM-NG ${GITHUB_REF_NAME}"
