@@ -2417,3 +2417,49 @@ func TestHandlerDetailLinksToDeleteConfirmation(t *testing.T) {
 		t.Fatal("delete confirmation link missing")
 	}
 }
+
+func TestHandlerRendersNewAlertModalWithValidAttributes(t *testing.T) {
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		&fakeLister{},
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/new",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusOK,
+		)
+	}
+
+	body := response.Body.String()
+
+	for _, expected := range []string{
+		`id="ctrl-modal"`,
+		`data-return-url="/"`,
+		`id="aamm-create-form"`,
+		`action="/alerts/new"`,
+		"Create AAMM-NG Alert",
+		"New alert message",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"new alert modal missing %q",
+				expected,
+			)
+		}
+	}
+
+	if strings.Contains(body, `\tid="ctrl-modal"`) {
+		t.Fatal("new alert modal contains literal escaped indentation")
+	}
+}

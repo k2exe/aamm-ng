@@ -396,78 +396,78 @@ var landingTemplate = template.Must(
 
 {{if .NewModal}}
 <dialog
-\tid="ctrl-modal"
-\tdata-return-url="{{.BasePath}}/"
+	id="ctrl-modal"
+	data-return-url="{{.BasePath}}/"
 >
-\t<div class="dialog">
+	<div class="dialog">
 
-\t\t<div>
-\t\t\t<div class="t">Create AAMM-NG Alert</div>
-\t\t\t<div class="s">New alert message</div>
-\t\t\t<hr>
-\t\t</div>
+		<div>
+			<div class="t">Create AAMM-NG Alert</div>
+			<div class="s">New alert message</div>
+			<hr>
+		</div>
 
-\t\t<div>
-\t\t\t<form
-\t\t\t\tid="aamm-create-form"
-\t\t\t\tmethod="post"
-\t\t\t\taction="{{.BasePath}}/alerts/new"
-\t\t\t>
-\t\t\t\t<div class="o">Target</div>
+		<div>
+			<form
+				id="aamm-create-form"
+				method="post"
+				action="{{.BasePath}}/alerts/new"
+			>
+				<div class="o">Target</div>
 
-\t\t\t\t<input
-\t\t\t\t\tclass="aamm-create-target"
-\t\t\t\t\tid="target"
-\t\t\t\t\tname="target"
-\t\t\t\t\ttype="text"
-\t\t\t\t\tautocomplete="off"
-\t\t\t\t\tautofocus
-\t\t\t\t\tmaxlength="63"
-\t\t\t\t\tpattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}"
-\t\t\t\t\tplaceholder="all or node-name"
-\t\t\t\t\trequired
-\t\t\t\t>
+				<input
+					class="aamm-create-target"
+					id="target"
+					name="target"
+					type="text"
+					autocomplete="off"
+					autofocus
+					maxlength="63"
+					pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}"
+					placeholder="all or node-name"
+					required
+				>
 
-\t\t\t\t<div class="m">
-\t\t\t\t\tUse <strong>all</strong> for all nodes, or enter a node target.
-\t\t\t\t\tLetters, numbers, hyphen, and underscore are supported.
-\t\t\t\t</div>
+				<div class="m">
+					Use <strong>all</strong> for all nodes, or enter a node target.
+					Letters, numbers, hyphen, and underscore are supported.
+				</div>
 
-\t\t\t\t<div class="o">Message</div>
+				<div class="o">Message</div>
 
-\t\t\t\t<textarea
-\t\t\t\t\tclass="aamm-message-editor"
-\t\t\t\t\tid="message"
-\t\t\t\t\tname="message"
-\t\t\t\t\trequired
-\t\t\t\t></textarea>
+				<textarea
+					class="aamm-message-editor"
+					id="message"
+					name="message"
+					required
+				></textarea>
 
-\t\t\t\t<div class="m">
-\t\t\t\t\tMaximum 4096 bytes.
-\t\t\t\t\tAAMM-NG will not overwrite an existing alert.
-\t\t\t\t</div>
-\t\t\t</form>
-\t\t</div>
+				<div class="m">
+					Maximum 4096 bytes.
+					AAMM-NG will not overwrite an existing alert.
+				</div>
+			</form>
+		</div>
 
-\t\t<div class="ctrl-modal-footer">
-\t\t\t<hr>
+		<div class="ctrl-modal-footer">
+			<hr>
 
-\t\t\t<div class="aamm-modal-actions">
-\t\t\t\t<button type="button" data-aamm-close>
-\t\t\t\t\tCancel
-\t\t\t\t</button>
+			<div class="aamm-modal-actions">
+				<button type="button" data-aamm-close>
+					Cancel
+				</button>
 
-\t\t\t\t<button
-\t\t\t\t\tid="dialog-done"
-\t\t\t\t\ttype="submit"
-\t\t\t\t\tform="aamm-create-form"
-\t\t\t\t>
-\t\t\t\t\tCreate
-\t\t\t\t</button>
-\t\t\t</div>
-\t\t</div>
+				<button
+					id="dialog-done"
+					type="submit"
+					form="aamm-create-form"
+				>
+					Create
+				</button>
+			</div>
+		</div>
 
-\t</div>
+	</div>
 </dialog>
 {{end}}
 
