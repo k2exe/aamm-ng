@@ -310,3 +310,58 @@
     color: var(--ctrl-modal-bg-color);
     background-color: var(--firmware-status-bg-color-negative);
 }
+
+/* New AAMM-NG alert */
+
+.aamm-page-actions
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+.aamm-page-actions .aamm-alert-count
+{
+    margin-left: 0;
+}
+
+.aamm-new-alert-button
+{
+    display: inline-block;
+    padding: 6px 10px;
+    border: 1px solid var(--hr-color);
+    border-radius: 4px;
+    color: var(--title-fg-color);
+    background-color: transparent;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.aamm-new-alert-button:hover
+{
+    background-color: var(--ctrl-bg-color-hover);
+}
+
+#ctrl-modal .aamm-create-target
+{
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 6px;
+    text-align: left;
+}
+
+@media (max-width: 700px)
+{
+    .aamm-page-header
+    {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .aamm-page-actions
+    {
+        margin-left: 0;
+    }
+}

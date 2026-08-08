@@ -14,6 +14,7 @@ import (
 type AlertManager interface {
 	List(context.Context) (localcontrol.ListResult, error)
 	Read(context.Context, string) (localcontrol.EntryResult, error)
+	Create(context.Context, string, string) (localcontrol.CreateResult, error)
 	Write(context.Context, string, string) (localcontrol.WriteResult, error)
 	Convert(context.Context, string, string) (localcontrol.ConvertResult, error)
 	Delete(context.Context, string) (localcontrol.DeleteResult, error)
@@ -174,6 +175,78 @@ func NewHandler(
 		)
 	})
 
+	mux.HandleFunc("/alerts/new", func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		switch request.Method {
+		case http.MethodGet, http.MethodHead:
+
+		case http.MethodPost:
+			if !sameOrigin(request) {
+				forbidden(writer)
+				return
+			}
+
+		default:
+			writer.Header().Set(
+				"Allow",
+				"GET, HEAD, POST",
+			)
+			http.Error(
+				writer,
+				"Method not allowed.",
+				http.StatusMethodNotAllowed,
+			)
+			return
+		}
+
+		if alerts == nil {
+			managementUnavailable(writer)
+			return
+		}
+
+		if request.Method == http.MethodPost {
+			handleAlertCreate(
+				writer,
+				request,
+				alerts,
+			)
+			return
+		}
+
+		var listing localcontrol.ListResult
+		var err error
+
+		if request.Method == http.MethodGet {
+			listing, err = alerts.List(request.Context())
+			if err != nil {
+				managementUnavailable(writer)
+				return
+			}
+		}
+
+		writer.Header().Set(
+			"Content-Type",
+			"text/html; charset=utf-8",
+		)
+		writer.WriteHeader(http.StatusOK)
+
+		if request.Method == http.MethodHead {
+			return
+		}
+
+		_ = landingTemplate.Execute(
+			writer,
+			pageData{
+				BasePath: requestBasePath(request),
+				Entries:  listing.Entries,
+				Issues:   listing.Issues,
+				NewModal: true,
+			},
+		)
+	})
+
 	mux.HandleFunc("/alerts/", func(
 		writer http.ResponseWriter,
 		request *http.Request,
@@ -299,6 +372,7 @@ type pageData struct {
 	Issues      []localcontrol.IssueResult
 	Modal       *localcontrol.EntryResult
 	DeleteModal *localcontrol.EntryResult
+	NewModal    bool
 }
 
 var landingTemplate = template.Must(
@@ -319,6 +393,83 @@ var landingTemplate = template.Must(
 </head>
 
 <body class="authenticated">
+
+{{if .NewModal}}
+<dialog
+\tid="ctrl-modal"
+\tdata-return-url="{{.BasePath}}/"
+>
+\t<div class="dialog">
+
+\t\t<div>
+\t\t\t<div class="t">Create AAMM-NG Alert</div>
+\t\t\t<div class="s">New alert message</div>
+\t\t\t<hr>
+\t\t</div>
+
+\t\t<div>
+\t\t\t<form
+\t\t\t\tid="aamm-create-form"
+\t\t\t\tmethod="post"
+\t\t\t\taction="{{.BasePath}}/alerts/new"
+\t\t\t>
+\t\t\t\t<div class="o">Target</div>
+
+\t\t\t\t<input
+\t\t\t\t\tclass="aamm-create-target"
+\t\t\t\t\tid="target"
+\t\t\t\t\tname="target"
+\t\t\t\t\ttype="text"
+\t\t\t\t\tautocomplete="off"
+\t\t\t\t\tautofocus
+\t\t\t\t\tmaxlength="63"
+\t\t\t\t\tpattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}"
+\t\t\t\t\tplaceholder="all or node-name"
+\t\t\t\t\trequired
+\t\t\t\t>
+
+\t\t\t\t<div class="m">
+\t\t\t\t\tUse <strong>all</strong> for all nodes, or enter a node target.
+\t\t\t\t\tLetters, numbers, hyphen, and underscore are supported.
+\t\t\t\t</div>
+
+\t\t\t\t<div class="o">Message</div>
+
+\t\t\t\t<textarea
+\t\t\t\t\tclass="aamm-message-editor"
+\t\t\t\t\tid="message"
+\t\t\t\t\tname="message"
+\t\t\t\t\trequired
+\t\t\t\t></textarea>
+
+\t\t\t\t<div class="m">
+\t\t\t\t\tMaximum 4096 bytes.
+\t\t\t\t\tAAMM-NG will not overwrite an existing alert.
+\t\t\t\t</div>
+\t\t\t</form>
+\t\t</div>
+
+\t\t<div class="ctrl-modal-footer">
+\t\t\t<hr>
+
+\t\t\t<div class="aamm-modal-actions">
+\t\t\t\t<button type="button" data-aamm-close>
+\t\t\t\t\tCancel
+\t\t\t\t</button>
+
+\t\t\t\t<button
+\t\t\t\t\tid="dialog-done"
+\t\t\t\t\ttype="submit"
+\t\t\t\t\tform="aamm-create-form"
+\t\t\t\t>
+\t\t\t\t\tCreate
+\t\t\t\t</button>
+\t\t\t</div>
+\t\t</div>
+
+\t</div>
+</dialog>
+{{end}}
 
 {{with .Modal}}
 <dialog
@@ -609,8 +760,17 @@ var landingTemplate = template.Must(
 						</div>
 					</div>
 
-					<div class="aamm-alert-count">
-						{{len .Entries}} alert{{if ne (len .Entries) 1}}s{{end}}
+					<div class="aamm-page-actions">
+						<div class="aamm-alert-count">
+							{{len .Entries}} alert{{if ne (len .Entries) 1}}s{{end}}
+						</div>
+
+						<a
+							class="aamm-new-alert-button"
+							href="{{.BasePath}}/alerts/new"
+						>
+							+ New Alert
+						</a>
 					</div>
 				</div>
 

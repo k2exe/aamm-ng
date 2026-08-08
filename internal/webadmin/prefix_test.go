@@ -84,6 +84,37 @@ func TestLandingTemplateUsesAREDNBasePath(t *testing.T) {
 	}
 }
 
+func TestNewAlertModalUsesAREDNBasePath(t *testing.T) {
+	var output bytes.Buffer
+
+	err := landingTemplate.Execute(
+		&output,
+		pageData{
+			BasePath: arednAppBasePath,
+			NewModal: true,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checks := []string{
+		`href="` + arednAppBasePath + `/alerts/new"`,
+		`action="` + arednAppBasePath + `/alerts/new"`,
+		`data-return-url="` + arednAppBasePath + `/"`,
+	}
+
+	for _, want := range checks {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf(
+				"new alert modal output missing %q:\n%s",
+				want,
+				output.String(),
+			)
+		}
+	}
+}
+
 func TestAlertModalUsesAREDNBasePath(t *testing.T) {
 	var output bytes.Buffer
 

@@ -71,6 +71,8 @@ func TestHandlerRendersAuthenticatedAlertListing(t *testing.T) {
 		`href="/a/css/admin.css"`,
 		`href="/apps/AAMM-NG/aamm-ng.css"`,
 		`src="/apps/AAMM-NG/aamm-ng.js"`,
+		`href="/alerts/new"`,
+		"+ New Alert",
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf(
@@ -579,6 +581,12 @@ type fakeLister struct {
 	readCalls  int
 	readTarget string
 
+	createResult  localcontrol.CreateResult
+	createErr     error
+	createCalls   int
+	createTarget  string
+	createMessage string
+
 	writeResult  localcontrol.WriteResult
 	writeErr     error
 	writeCalls   int
@@ -613,6 +621,18 @@ func (lister *fakeLister) Read(
 	lister.readTarget = target
 
 	return lister.readResult, lister.readErr
+}
+
+func (lister *fakeLister) Create(
+	_ context.Context,
+	target string,
+	message string,
+) (localcontrol.CreateResult, error) {
+	lister.createCalls++
+	lister.createTarget = target
+	lister.createMessage = message
+
+	return lister.createResult, lister.createErr
 }
 
 func (lister *fakeLister) Write(
@@ -650,6 +670,255 @@ func (lister *fakeLister) Delete(
 }
 
 var _ AlertManager = (*fakeLister)(nil)
+
+func TestHandlerShowsNewAlertModal(t *testing.T) {
+	alerts := &fakeLister{
+		result: localcontrol.ListResult{
+			Entries: []localcontrol.EntryResult{
+				{
+					Target:  "weather",
+					Kind:    "managed",
+					Message: "Existing",
+					Size:    8,
+				},
+			},
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/new",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusOK,
+		)
+	}
+
+	body := response.Body.String()
+
+	for _, expected := range []string{
+		`id="ctrl-modal"`,
+		"Create AAMM-NG Alert",
+		`action="/alerts/new"`,
+		`name="target"`,
+		`name="message"`,
+		"AAMM-NG will not overwrite an existing alert.",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"new alert modal missing %q",
+				expected,
+			)
+		}
+	}
+
+	if alerts.calls != 1 {
+		t.Fatalf(
+			"List calls = %d; want 1",
+			alerts.calls,
+		)
+	}
+
+	if alerts.createCalls != 0 {
+		t.Fatal("Create called while rendering form")
+	}
+}
+
+func TestHandlerCreatesNewAlert(t *testing.T) {
+	alerts := &fakeLister{
+		createResult: localcontrol.CreateResult{
+			Target: "weather",
+			Kind:   "managed",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313/alerts/new",
+		strings.NewReader(
+			"target=WEATHER&message=Weather+net+active",
+		),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+	request.Header.Set(
+		"Origin",
+		"http://node.local.mesh:11313",
+	)
+	request.AddCookie(
+		&http.Cookie{
+			Name:  "authV1",
+			Value: "opaque-session",
+		},
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusSeeOther,
+		)
+	}
+
+	if location := response.Header().Get("Location"); location != "/" {
+		t.Fatalf(
+			"Location = %q; want /",
+			location,
+		)
+	}
+
+	if alerts.createCalls != 1 {
+		t.Fatalf(
+			"Create calls = %d; want 1",
+			alerts.createCalls,
+		)
+	}
+
+	if alerts.createTarget != "weather" {
+		t.Fatalf(
+			"Create target = %q; want weather",
+			alerts.createTarget,
+		)
+	}
+
+	if alerts.createMessage != "Weather net active" {
+		t.Fatalf(
+			"Create message = %q; want Weather net active",
+			alerts.createMessage,
+		)
+	}
+}
+
+func TestHandlerRejectsExistingNewAlertTarget(t *testing.T) {
+	alerts := &fakeLister{
+		createErr: &localcontrol.RemoteError{
+			Code:    localcontrol.ErrorAlreadyExists,
+			Message: "internal existing target detail",
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313/alerts/new",
+		strings.NewReader(
+			"target=all&message=Must+not+replace",
+		),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+	request.Header.Set(
+		"Origin",
+		"http://node.local.mesh:11313",
+	)
+	request.AddCookie(
+		&http.Cookie{
+			Name:  "authV1",
+			Value: "opaque-session",
+		},
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusConflict,
+		)
+	}
+
+	body := response.Body.String()
+
+	if !strings.Contains(
+		body,
+		"An alert already exists for that target.",
+	) {
+		t.Fatal("existing-target message missing")
+	}
+
+	if strings.Contains(
+		body,
+		"internal existing target detail",
+	) {
+		t.Fatal("response exposed daemon error detail")
+	}
+}
+
+func TestHandlerRejectsCreateWithoutOrigin(t *testing.T) {
+	alerts := &fakeLister{}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://node.local.mesh:11313/alerts/new",
+		strings.NewReader(
+			"target=weather&message=Net+open",
+		),
+	)
+
+	request.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
+	request.AddCookie(
+		&http.Cookie{
+			Name:  "authV1",
+			Value: "opaque-session",
+		},
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusForbidden,
+		)
+	}
+
+	if alerts.createCalls != 0 {
+		t.Fatal("Create called without Origin")
+	}
+}
 
 func TestHandlerLinksAlertsToDetailPage(t *testing.T) {
 	handler := NewHandler(
