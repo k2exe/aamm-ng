@@ -18,6 +18,7 @@ type Operation string
 const (
 	OperationList    Operation = "list"
 	OperationRead    Operation = "read"
+	OperationCreate  Operation = "create"
 	OperationWrite   Operation = "write"
 	OperationConvert Operation = "convert"
 	OperationDelete  Operation = "delete"
@@ -126,7 +127,7 @@ func validateRequest(request Request) error {
 			)
 		}
 
-	case OperationWrite, OperationConvert:
+	case OperationCreate, OperationWrite, OperationConvert:
 		if request.Target == "" {
 			return fmt.Errorf(
 				"%w: %s requires target",

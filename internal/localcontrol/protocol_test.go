@@ -23,6 +23,11 @@ func TestDecodeRequestAcceptsOperations(t *testing.T) {
 			operation: OperationRead,
 		},
 		{
+			name:      "create",
+			input:     `{"version":1,"operation":"create","target":"all","message":"Net open"}`,
+			operation: OperationCreate,
+		},
+		{
 			name:      "write",
 			input:     `{"version":1,"operation":"write","target":"all","message":"Net open"}`,
 			operation: OperationWrite,
@@ -126,6 +131,7 @@ func TestDecodeRequestRejectsMultipleValues(t *testing.T) {
 func TestDecodeRequestRequiresTarget(t *testing.T) {
 	for _, operation := range []Operation{
 		OperationRead,
+		OperationCreate,
 		OperationWrite,
 		OperationConvert,
 		OperationDelete,
@@ -149,6 +155,7 @@ func TestDecodeRequestRequiresTarget(t *testing.T) {
 
 func TestDecodeRequestRequiresWriteMessage(t *testing.T) {
 	for _, operation := range []Operation{
+		OperationCreate,
 		OperationWrite,
 		OperationConvert,
 	} {

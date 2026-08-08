@@ -11,6 +11,7 @@ import (
 type Store interface {
 	List() (alertstore.Listing, error)
 	Read(alerttarget.Target) (alertstore.Entry, error)
+	Create(alerttarget.Target, alertmessage.Message) error
 	Write(alerttarget.Target, alertmessage.Message) error
 	ConvertLegacy(
 		alerttarget.Target,
@@ -26,6 +27,9 @@ func Dispatch(store Store, request Request) Response {
 
 	case OperationRead:
 		return dispatchRead(store, request)
+
+	case OperationCreate:
+		return dispatchCreate(store, request)
 
 	case OperationWrite:
 		return dispatchWrite(store, request)
@@ -68,6 +72,27 @@ func dispatchRead(store Store, request Request) Response {
 	}
 
 	return Success(entryResult(entry))
+}
+
+func dispatchCreate(store Store, request Request) Response {
+	target, response, ok := parseTarget(request.Target)
+	if !ok {
+		return response
+	}
+
+	message, response, ok := parseMessage(request.Message)
+	if !ok {
+		return response
+	}
+
+	if err := store.Create(target, message); err != nil {
+		return responseForError(err)
+	}
+
+	return Success(CreateResult{
+		Target: target.String(),
+		Kind:   "managed",
+	})
 }
 
 func dispatchWrite(store Store, request Request) Response {

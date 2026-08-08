@@ -594,3 +594,84 @@ func writeAlert(t *testing.T, directory, name string, content []byte) {
 		t.Fatal(err)
 	}
 }
+
+func TestCreateCreatesManagedAlert(t *testing.T) {
+	directory := t.TempDir()
+	target := mustTarget(t, "weather")
+	message := mustMessage(t, "Weather net active\nMonitor conditions")
+
+	store := mustOpen(t, directory)
+	defer store.Close()
+
+	if err := store.Create(target, message); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(
+		filepath.Join(directory, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(data) != message.EscapedHTML() {
+		t.Fatalf(
+			"stored content = %q; want %q",
+			string(data),
+			message.EscapedHTML(),
+		)
+	}
+
+	info, err := os.Stat(
+		filepath.Join(directory, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf(
+			"stored mode = %04o; want 0644",
+			info.Mode().Perm(),
+		)
+	}
+}
+
+func TestCreateRejectsExistingAlertWithoutChangingIt(t *testing.T) {
+	directory := t.TempDir()
+	target := mustTarget(t, "all")
+	original := mustMessage(t, "Original alert")
+	replacement := mustMessage(t, "Must not replace")
+
+	writeAlert(
+		t,
+		directory,
+		target.Filename(),
+		[]byte(original.EscapedHTML()),
+	)
+
+	store := mustOpen(t, directory)
+	defer store.Close()
+
+	err := store.Create(target, replacement)
+	if !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf(
+			"Create() error = %v; want ErrAlreadyExists",
+			err,
+		)
+	}
+
+	after, err := os.ReadFile(
+		filepath.Join(directory, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(after) != original.EscapedHTML() {
+		t.Fatalf(
+			"existing alert changed to %q",
+			string(after),
+		)
+	}
+}

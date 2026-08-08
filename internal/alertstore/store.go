@@ -20,6 +20,7 @@ var (
 	ErrInvalidBackupRoot = errors.New("invalid backup directory")
 	ErrInvalidTarget     = errors.New("invalid alert target")
 	ErrInvalidMessage    = errors.New("invalid alert message")
+	ErrAlreadyExists     = errors.New("alert already exists")
 	ErrLegacyConflict    = errors.New("legacy alert requires explicit conversion")
 	ErrOversizedConflict = errors.New("oversized alert requires explicit conversion")
 	ErrManagedConflict   = errors.New("managed alert does not require conversion")
@@ -164,6 +165,32 @@ func (s *Store) Read(target alerttarget.Target) (Entry, error) {
 	}
 
 	return readEntry(s.alertRoot, target)
+}
+
+func (s *Store) Create(
+	target alerttarget.Target,
+	message alertmessage.Message,
+) error {
+	if target.String() == "" || target.Filename() == "" {
+		return ErrInvalidTarget
+	}
+
+	if message.String() == "" {
+		return ErrInvalidMessage
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.alertRoot == nil {
+		return ErrClosed
+	}
+
+	return createManagedExclusive(
+		s.alertRoot,
+		target,
+		message,
+	)
 }
 
 func (s *Store) Write(
@@ -321,6 +348,130 @@ func ensureManagedWritable(
 			target.String(),
 		)
 	}
+}
+
+func createManagedExclusive(
+	root *os.Root,
+	target alerttarget.Target,
+	message alertmessage.Message,
+) error {
+	file, temporaryName, err := createTemporaryAlert(root)
+	if err != nil {
+		return fmt.Errorf(
+			"create temporary alert %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	closed := false
+	temporaryRemoved := false
+
+	defer func() {
+		if !closed {
+			_ = file.Close()
+		}
+
+		if !temporaryRemoved {
+			_ = root.Remove(temporaryName)
+		}
+	}()
+
+	rendered := message.EscapedHTML()
+
+	written, err := io.WriteString(file, rendered)
+	if err != nil {
+		return fmt.Errorf(
+			"write temporary alert %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	if written != len(rendered) {
+		return fmt.Errorf(
+			"write temporary alert %q: %w",
+			target.String(),
+			io.ErrShortWrite,
+		)
+	}
+
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf(
+			"sync temporary alert %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	if err := file.Chmod(0o644); err != nil {
+		return fmt.Errorf(
+			"set alert permissions %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf(
+			"sync alert permissions %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	closeErr := file.Close()
+	closed = true
+
+	if closeErr != nil {
+		return fmt.Errorf(
+			"close temporary alert %q: %w",
+			target.String(),
+			closeErr,
+		)
+	}
+
+	// Publish with a hard link rather than Rename. Link fails if the
+	// destination already exists, so Create can never overwrite an
+	// existing managed, legacy, oversized, or unsafe entry.
+	if err := root.Link(
+		temporaryName,
+		target.Filename(),
+	); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf(
+				"%w: %s",
+				ErrAlreadyExists,
+				target.String(),
+			)
+		}
+
+		return fmt.Errorf(
+			"publish new alert %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	if err := root.Remove(temporaryName); err != nil {
+		return fmt.Errorf(
+			"remove temporary alert after publishing %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	temporaryRemoved = true
+
+	if err := syncDirectory(root); err != nil {
+		return fmt.Errorf(
+			"sync alert directory after creating %q: %w",
+			target.String(),
+			err,
+		)
+	}
+
+	return nil
 }
 
 func writeManaged(

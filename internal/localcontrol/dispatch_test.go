@@ -56,6 +56,62 @@ func TestDispatchRead(t *testing.T) {
 	}
 }
 
+func TestDispatchCreateValidatesAndCallsStore(t *testing.T) {
+	store := &fakeStore{}
+
+	response := Dispatch(store, Request{
+		Version:   ProtocolVersion,
+		Operation: OperationCreate,
+		Target:    "ALL",
+		Message:   "Net open",
+	})
+
+	if !response.OK {
+		t.Fatalf("Dispatch() = %#v; want success", response)
+	}
+
+	if store.createTarget.String() != "all" {
+		t.Fatalf(
+			"Create target = %q; want all",
+			store.createTarget.String(),
+		)
+	}
+
+	if store.createMessage.String() != "Net open" {
+		t.Fatalf(
+			"Create message = %q; want Net open",
+			store.createMessage.String(),
+		)
+	}
+
+	result, ok := response.Result.(CreateResult)
+	if !ok {
+		t.Fatalf(
+			"Result type = %T; want CreateResult",
+			response.Result,
+		)
+	}
+
+	if result.Target != "all" || result.Kind != "managed" {
+		t.Fatalf("CreateResult = %#v", result)
+	}
+}
+
+func TestDispatchCreateMapsExistingAlertConflict(t *testing.T) {
+	store := &fakeStore{
+		createErr: alertstore.ErrAlreadyExists,
+	}
+
+	response := Dispatch(store, Request{
+		Version:   ProtocolVersion,
+		Operation: OperationCreate,
+		Target:    "all",
+		Message:   "Net open",
+	})
+
+	requireErrorCode(t, response, ErrorAlreadyExists)
+}
+
 func TestDispatchWriteValidatesAndCallsStore(t *testing.T) {
 	store := &fakeStore{}
 
@@ -252,6 +308,11 @@ type fakeStore struct {
 	readCalls  int
 	readTarget alerttarget.Target
 
+	createErr     error
+	createCalls   int
+	createTarget  alerttarget.Target
+	createMessage alertmessage.Message
+
 	writeErr     error
 	writeCalls   int
 	writeTarget  alerttarget.Target
@@ -277,6 +338,16 @@ func (store *fakeStore) Read(
 	store.readCalls++
 	store.readTarget = target
 	return store.entry, store.readErr
+}
+
+func (store *fakeStore) Create(
+	target alerttarget.Target,
+	message alertmessage.Message,
+) error {
+	store.createCalls++
+	store.createTarget = target
+	store.createMessage = message
+	return store.createErr
 }
 
 func (store *fakeStore) Write(

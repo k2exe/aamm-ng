@@ -14,6 +14,7 @@ const (
 	ErrorInvalidTarget      = "invalid_target"
 	ErrorInvalidMessage     = "invalid_message"
 	ErrorNotFound           = "not_found"
+	ErrorAlreadyExists      = "already_exists"
 	ErrorLegacyConflict     = "legacy_conflict"
 	ErrorOversizedConflict  = "oversized_conflict"
 	ErrorManagedConflict    = "managed_conflict"
@@ -40,6 +41,11 @@ type IssueResult struct {
 type ListResult struct {
 	Entries []EntryResult `json:"entries"`
 	Issues  []IssueResult `json:"issues"`
+}
+
+type CreateResult struct {
+	Target string `json:"target"`
+	Kind   string `json:"kind"`
 }
 
 type WriteResult struct {
@@ -165,6 +171,9 @@ func responseForError(err error) Response {
 
 	case errors.Is(err, os.ErrNotExist):
 		return Failure(ErrorNotFound, err.Error())
+
+	case errors.Is(err, alertstore.ErrAlreadyExists):
+		return Failure(ErrorAlreadyExists, err.Error())
 
 	case errors.Is(err, alertstore.ErrLegacyConflict):
 		return Failure(ErrorLegacyConflict, err.Error())
