@@ -94,16 +94,9 @@ func newRequest(
 		)
 	}
 
-	path := getenv("PATH_INFO")
-	if path == "" {
-		path = "/"
-	}
-
-	if !strings.HasPrefix(path, "/") {
-		return nil, fmt.Errorf(
-			"%w: invalid PATH_INFO",
-			ErrInvalidEnvironment,
-		)
+	path, err := requestPath(getenv)
+	if err != nil {
+		return nil, err
 	}
 
 	target := &url.URL{
@@ -200,6 +193,59 @@ func newRequest(
 	}
 
 	return request, nil
+}
+
+func requestPath(getenv Getenv) (string, error) {
+	path := getenv("PATH_INFO")
+
+	if path != "" {
+		if !strings.HasPrefix(path, "/") {
+			return "", fmt.Errorf(
+				"%w: invalid PATH_INFO",
+				ErrInvalidEnvironment,
+			)
+		}
+
+		return path, nil
+	}
+
+	requestURI := getenv("REQUEST_URI")
+	if requestURI == "" {
+		return "/", nil
+	}
+
+	parsed, err := url.ParseRequestURI(requestURI)
+	if err != nil {
+		return "", fmt.Errorf(
+			"%w: invalid REQUEST_URI",
+			ErrInvalidEnvironment,
+		)
+	}
+
+	if parsed.Path == ExternalBasePath ||
+		parsed.Path == ExternalBasePath+"/" {
+		return "/", nil
+	}
+
+	prefix := ExternalBasePath + "/"
+
+	if !strings.HasPrefix(parsed.Path, prefix) {
+		return "", fmt.Errorf(
+			"%w: REQUEST_URI outside application path",
+			ErrInvalidEnvironment,
+		)
+	}
+
+	path = strings.TrimPrefix(
+		parsed.Path,
+		ExternalBasePath,
+	)
+
+	if path == "" {
+		path = "/"
+	}
+
+	return path, nil
 }
 
 func copyHeader(

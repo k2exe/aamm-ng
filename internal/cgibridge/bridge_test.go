@@ -3,6 +3,7 @@ package cgibridge
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -246,6 +247,82 @@ func TestNewRequestStillForwardsCGIStdinForPost(t *testing.T) {
 		t.Fatalf(
 			"POST ContentLength = %d; want 12",
 			request.ContentLength,
+		)
+	}
+}
+
+func TestNewRequestUsesRequestURIWhenPathInfoMissing(t *testing.T) {
+	values := map[string]string{
+		"REQUEST_METHOD": "GET",
+		"REQUEST_URI":    ExternalBasePath + "/alerts/new",
+		"HTTP_HOST":      "node.local.mesh",
+	}
+
+	request, err := newRequest(
+		context.Background(),
+		http.NoBody,
+		func(name string) string {
+			return values[name]
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if request.URL.Path != "/alerts/new" {
+		t.Fatalf(
+			"path = %q; want /alerts/new",
+			request.URL.Path,
+		)
+	}
+}
+
+func TestNewRequestPrefersPathInfoOverRequestURI(t *testing.T) {
+	values := map[string]string{
+		"REQUEST_METHOD": "GET",
+		"PATH_INFO":      "/alerts/wx",
+		"REQUEST_URI":    ExternalBasePath + "/alerts/new",
+		"HTTP_HOST":      "node.local.mesh",
+	}
+
+	request, err := newRequest(
+		context.Background(),
+		http.NoBody,
+		func(name string) string {
+			return values[name]
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if request.URL.Path != "/alerts/wx" {
+		t.Fatalf(
+			"path = %q; want /alerts/wx",
+			request.URL.Path,
+		)
+	}
+}
+
+func TestNewRequestRejectsRequestURIOutsideApplication(t *testing.T) {
+	values := map[string]string{
+		"REQUEST_METHOD": "GET",
+		"REQUEST_URI":    "/cgi-bin/other-app/alerts/new",
+		"HTTP_HOST":      "node.local.mesh",
+	}
+
+	_, err := newRequest(
+		context.Background(),
+		http.NoBody,
+		func(name string) string {
+			return values[name]
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidEnvironment) {
+		t.Fatalf(
+			"error = %v; want ErrInvalidEnvironment",
+			err,
 		)
 	}
 }
