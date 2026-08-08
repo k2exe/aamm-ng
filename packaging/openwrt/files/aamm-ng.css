@@ -216,3 +216,64 @@
         grid-row: 1 / span 2;
     }
 }
+
+/* AAMM-NG modal layout */
+
+.aamm-modal-meta
+{
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 16px;
+}
+
+.aamm-modal-target
+{
+    margin-top: 3px;
+    font-size: var(--font-base-size) !important;
+}
+
+.aamm-message-editor
+{
+    display: block;
+    width: 100%;
+    min-height: 220px;
+    margin-top: 6px;
+}
+
+.aamm-source-preview
+{
+    max-height: 180px;
+    overflow: auto;
+    padding: 10px;
+    border: 1px solid var(--ctrl-modal-textbox-border-color);
+    background-color: var(--ctrl-modal-textbox-bg-color);
+    white-space: pre-wrap;
+}
+
+.aamm-modal-actions
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.aamm-delete-link
+{
+    margin-right: auto;
+    color: var(--firmware-status-bg-color-negative);
+    text-decoration: none;
+}
+
+.aamm-delete-link:hover
+{
+    text-decoration: underline;
+}
+
+@media (max-width: 700px)
+{
+    .aamm-modal-meta
+    {
+        grid-template-columns: 1fr;
+    }
+}

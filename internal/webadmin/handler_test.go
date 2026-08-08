@@ -61,7 +61,7 @@ func TestHandlerRendersAuthenticatedAlertListing(t *testing.T) {
 	body := response.Body.String()
 
 	for _, expected := range []string{
-		"Alert Message Manager",
+		"AAMM-NG Alert Message Manager",
 		"Net open",
 		"Existing alert — conversion required",
 		"Oversized alert — manual review required",
@@ -70,6 +70,7 @@ func TestHandlerRendersAuthenticatedAlertListing(t *testing.T) {
 		`href="/a/css/user.css"`,
 		`href="/a/css/admin.css"`,
 		`href="/apps/AAMM-NG/aamm-ng.css"`,
+		`src="/apps/AAMM-NG/aamm-ng.js"`,
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf(
@@ -133,6 +134,82 @@ func TestHandlerEscapesManagedMessage(t *testing.T) {
 		"&lt;script&gt;alert(1)&lt;/script&gt;",
 	) {
 		t.Fatal("managed message was not HTML-escaped")
+	}
+}
+
+func TestHandlerRendersManagedAlertAsNativeModal(t *testing.T) {
+	alerts := &fakeLister{
+		result: localcontrol.ListResult{
+			Entries: []localcontrol.EntryResult{
+				{
+					Target:  "all",
+					Kind:    "managed",
+					Message: "Net open",
+					Size:    8,
+				},
+			},
+		},
+		readResult: localcontrol.EntryResult{
+			Target:  "all",
+			Kind:    "managed",
+			Message: "Net open",
+			Size:    8,
+		},
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/alerts/all",
+	)
+
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusOK,
+		)
+	}
+
+	body := response.Body.String()
+
+	for _, expected := range []string{
+		`id="ctrl-modal"`,
+		"Edit AAMM-NG Alert",
+		`action="/alerts/all"`,
+		`data-return-url="/"`,
+		`src="/apps/AAMM-NG/aamm-ng.js"`,
+		"Net open",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"modal body missing %q",
+				expected,
+			)
+		}
+	}
+
+	if alerts.readCalls != 1 {
+		t.Fatalf(
+			"Read calls = %d; want 1",
+			alerts.readCalls,
+		)
+	}
+
+	if alerts.calls != 1 {
+		t.Fatalf(
+			"List calls = %d; want 1",
+			alerts.calls,
+		)
 	}
 }
 
@@ -642,9 +719,18 @@ func TestHandlerRendersManagedAlertDetail(t *testing.T) {
 
 	body := response.Body.String()
 
-	if !strings.Contains(body, "Alert: all") ||
-		!strings.Contains(body, "Net open\nSecond line") {
-		t.Fatal("managed alert detail missing")
+	for _, expected := range []string{
+		`id="ctrl-modal"`,
+		"Edit AAMM-NG Alert",
+		"all",
+		"Net open\nSecond line",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"managed alert modal missing %q",
+				expected,
+			)
+		}
 	}
 
 	if alerts.readCalls != 1 {
@@ -1319,11 +1405,17 @@ func TestHandlerShowsLegacyConversionForm(t *testing.T) {
 		t.Fatal("legacy conversion form missing")
 	}
 
-	if !strings.Contains(
-		body,
-		"original legacy alert will be backed up",
-	) {
-		t.Fatal("backup notice missing")
+	for _, expected := range []string{
+		"Existing alert",
+		"This alert was not created by AAMM-NG.",
+		"AAMM-NG will back up the existing alert before conversion.",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"legacy conversion modal missing %q",
+				expected,
+			)
+		}
 	}
 }
 

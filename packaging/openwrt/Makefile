@@ -73,6 +73,10 @@ define Package/aamm-ng/install
 	$(INSTALL_DATA) \
 		./files/aamm-ng.css \
 		$(1)/www/apps/AAMM-NG/aamm-ng.css
+
+	$(INSTALL_DATA) \
+		./files/aamm-ng.js \
+		$(1)/www/apps/AAMM-NG/aamm-ng.js
 endef
 
 $(eval $(call BuildPackage,aamm-ng))

@@ -84,19 +84,24 @@ func TestLandingTemplateUsesAREDNBasePath(t *testing.T) {
 	}
 }
 
-func TestDetailTemplateUsesAREDNBasePath(t *testing.T) {
+func TestAlertModalUsesAREDNBasePath(t *testing.T) {
 	var output bytes.Buffer
 
-	err := detailTemplate.Execute(
+	modal := localcontrol.EntryResult{
+		Target:  "wx",
+		Kind:    "managed",
+		Message: "Weather alert",
+		Size:    13,
+	}
+
+	err := landingTemplate.Execute(
 		&output,
-		detailPageData{
-			EntryResult: localcontrol.EntryResult{
-				Target:  "wx",
-				Kind:    "managed",
-				Message: "Weather alert",
-				Size:    13,
-			},
+		pageData{
 			BasePath: arednAppBasePath,
+			Entries: []localcontrol.EntryResult{
+				modal,
+			},
+			Modal: &modal,
 		},
 	)
 	if err != nil {
@@ -104,15 +109,16 @@ func TestDetailTemplateUsesAREDNBasePath(t *testing.T) {
 	}
 
 	checks := []string{
-		`href="` + arednAppBasePath + `/"`,
+		`href="` + arednAppBasePath + `/alerts/wx"`,
 		`action="` + arednAppBasePath + `/alerts/wx"`,
 		`href="` + arednAppBasePath + `/alerts/wx/delete"`,
+		`data-return-url="` + arednAppBasePath + `/"`,
 	}
 
 	for _, want := range checks {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf(
-				"detail output missing %q:\n%s",
+				"modal output missing %q:\n%s",
 				want,
 				output.String(),
 			)

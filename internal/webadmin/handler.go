@@ -249,6 +249,16 @@ func NewHandler(
 			return
 		}
 
+		var listing localcontrol.ListResult
+
+		if request.Method == http.MethodGet {
+			listing, err = alerts.List(request.Context())
+			if err != nil {
+				managementUnavailable(writer)
+				return
+			}
+		}
+
 		writer.Header().Set(
 			"Content-Type",
 			"text/html; charset=utf-8",
@@ -259,11 +269,15 @@ func NewHandler(
 			return
 		}
 
-		_ = detailTemplate.Execute(
+		modalEntry := entry
+
+		_ = landingTemplate.Execute(
 			writer,
-			detailPageData{
-				EntryResult: entry,
-				BasePath:    requestBasePath(request),
+			pageData{
+				BasePath: requestBasePath(request),
+				Entries:  listing.Entries,
+				Issues:   listing.Issues,
+				Modal:    &modalEntry,
 			},
 		)
 	})
@@ -283,11 +297,7 @@ type pageData struct {
 	BasePath string
 	Entries  []localcontrol.EntryResult
 	Issues   []localcontrol.IssueResult
-}
-
-type detailPageData struct {
-	localcontrol.EntryResult
-	BasePath string
+	Modal    *localcontrol.EntryResult
 }
 
 var landingTemplate = template.Must(
@@ -296,17 +306,144 @@ var landingTemplate = template.Must(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AAMM-NG</title>
+<title>AAMM-NG — Alert Message Manager</title>
 
 <link rel="stylesheet" href="/a/css/theme.css">
 <link rel="stylesheet" href="/a/css/user.css">
 <link rel="stylesheet" href="/a/css/admin.css">
 <link rel="stylesheet" href="/apps/AAMM-NG/aamm-ng.css">
+<script src="/apps/AAMM-NG/aamm-ng.js" defer></script>
 
 <link rel="icon" type="image/svg+xml" href="/apps/AAMM-NG/icon.svg">
 </head>
 
 <body class="authenticated">
+
+{{with .Modal}}
+<dialog
+	id="ctrl-modal"
+	data-return-url="{{$.BasePath}}/"
+>
+	<div class="dialog">
+
+		<div>
+			<div class="t">Edit AAMM-NG Alert</div>
+			<div class="s">{{.Target}}</div>
+			<hr>
+		</div>
+
+		<div>
+			<div class="aamm-modal-meta">
+				<div>
+					<div class="s">Target</div>
+					<div class="t aamm-modal-target">{{.Target}}</div>
+				</div>
+
+				<div>
+					<div class="s">Status</div>
+					<div>
+						{{if eq .Kind "managed"}}
+						<span class="aamm-kind aamm-managed">Managed</span>
+						{{else if eq .Kind "legacy"}}
+						<span class="aamm-kind aamm-existing">Existing</span>
+						{{else if eq .Kind "oversized"}}
+						<span class="aamm-kind aamm-oversized">Review</span>
+						{{end}}
+					</div>
+				</div>
+
+				<div>
+					<div class="s">Size</div>
+					<div>{{.Size}} bytes</div>
+				</div>
+			</div>
+
+			<hr>
+
+			{{if eq .Kind "managed"}}
+			<form
+				id="aamm-alert-form"
+				method="post"
+				action="{{$.BasePath}}/alerts/{{.Target}}"
+			>
+				<div class="o">Message</div>
+				<textarea
+					class="aamm-message-editor"
+					id="message"
+					name="message"
+					required
+				>{{.Message}}</textarea>
+				<div class="m">
+					Maximum 4096 bytes.
+				</div>
+			</form>
+
+			{{else if eq .Kind "legacy"}}
+			<div class="o">Existing alert</div>
+			<div class="m">
+				This alert was not created by AAMM-NG.
+				Convert it before editing.
+			</div>
+
+			<div class="o">Original content</div>
+			<pre class="aamm-source-preview">{{.LegacySource}}</pre>
+
+			<form
+				id="aamm-alert-form"
+				method="post"
+				action="{{$.BasePath}}/alerts/{{.Target}}/convert"
+			>
+				<div class="o">Replacement message</div>
+				<textarea
+					class="aamm-message-editor"
+					id="message"
+					name="message"
+					required
+				></textarea>
+				<div class="m">
+					AAMM-NG will back up the existing alert before conversion.
+				</div>
+			</form>
+
+			{{else if eq .Kind "oversized"}}
+			<div class="o">Manual review required</div>
+			<div class="m">
+				This alert is larger than AAMM-NG can safely edit.
+			</div>
+			{{end}}
+		</div>
+
+		<div class="ctrl-modal-footer">
+			<hr>
+
+			<div class="aamm-modal-actions">
+				<a
+					class="aamm-delete-link"
+					href="{{$.BasePath}}/alerts/{{.Target}}/delete"
+				>
+					Delete alert
+				</a>
+
+				<button type="button" data-aamm-close>
+					Cancel
+				</button>
+
+				{{if or (eq .Kind "managed") (eq .Kind "legacy")}}
+				<button
+					id="dialog-done"
+					type="submit"
+					form="aamm-alert-form"
+				>
+					{{if eq .Kind "managed"}}Save{{else}}Convert{{end}}
+				</button>
+				{{end}}
+			</div>
+		</div>
+
+	</div>
+</dialog>
+{{end}}
+
 <div id="all">
 
 <div id="nav">
@@ -323,7 +460,7 @@ var landingTemplate = template.Must(
 	</a>
 
 	<div id="nav-status">
-		Alert Message Manager
+		Next Generation Alert Manager
 	</div>
 
 	<div class="aamm-nav-spacer"></div>
@@ -367,11 +504,11 @@ var landingTemplate = template.Must(
 				<div class="aamm-page-header">
 					<div>
 						<div class="aamm-page-title">
-							Alert Message Manager
+							AAMM-NG Alert Message Manager
 						</div>
 
 						<div class="aamm-page-subtitle">
-							Manage alert messages published by this AREDN node.
+							Next-generation AREDN alert management for this node.
 						</div>
 					</div>
 
@@ -515,61 +652,6 @@ Type <strong>{{.Target}}</strong> to confirm deletion:
 >
 <button type="submit">Delete alert</button>
 </form>
-</main>
-</body>
-</html>
-`),
-)
-
-var detailTemplate = template.Must(
-	template.New("detail").Parse(`<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Target}} - AAMM-NG</title>
-</head>
-<body>
-<main>
-<p><a href="{{.BasePath}}/">Back to alerts</a></p>
-
-<h1>Alert: {{.Target}}</h1>
-
-<dl>
-<dt>Type</dt>
-<dd>{{.Kind}}</dd>
-<dt>Size</dt>
-<dd>{{.Size}} bytes</dd>
-</dl>
-
-{{if eq .Kind "managed"}}
-<h2>Message</h2>
-<form method="post" action="{{.BasePath}}/alerts/{{.Target}}">
-<label for="message">Alert message</label><br>
-<textarea id="message" name="message" rows="8" cols="72" required>{{.Message}}</textarea>
-<p>Maximum 4096 bytes.</p>
-<button type="submit">Save alert</button>
-</form>
-{{else if eq .Kind "legacy"}}
-<h2>Legacy source</h2>
-<p>This legacy alert must be converted before AAMM-NG can manage it.</p>
-<pre>{{.LegacySource}}</pre>
-
-<h2>Convert to managed alert</h2>
-<p>The original legacy alert will be backed up before conversion.</p>
-<form method="post" action="{{.BasePath}}/alerts/{{.Target}}/convert">
-<label for="message">Replacement alert message</label><br>
-<textarea id="message" name="message" rows="8" cols="72" required></textarea>
-<p>Maximum 4096 bytes.</p>
-<button type="submit">Convert alert</button>
-</form>
-{{else if eq .Kind "oversized"}}
-<p>Oversized alert — manual review required.</p>
-{{else}}
-<p>Unknown alert type.</p>
-{{end}}
-
-<p><a href="{{.BasePath}}/alerts/{{.Target}}/delete">Delete alert</a></p>
 </main>
 </body>
 </html>
