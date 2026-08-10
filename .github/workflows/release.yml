@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: aamm-ng-release-${{ github.ref }}
@@ -145,39 +146,127 @@ jobs:
     name: Build ${{ matrix.arch }}
     needs: validate
     runs-on: ubuntu-latest
-
-    container:
-      image: arednmesh/builder@sha256:33799067387d0d88c362f7c47fb1c0382426bc8ad608a5ecc41f3d50eb6be317
+    timeout-minutes: 120
 
     strategy:
       fail-fast: false
+      max-parallel: 5
       matrix:
         include:
           - target: ath79-generic
             arch: mips_24kc
+            image: ghcr.io/k2exe/aredn-go-builder:ath79-generic-4.26.7.0
 
           - target: ipq40xx-mikrotik
             arch: arm_cortex-a7_neon-vfpv4
+            image: ghcr.io/k2exe/aredn-go-builder:ipq40xx-mikrotik-4.26.7.0
 
           - target: ramips-mt7621
             arch: mipsel_24kc
+            image: ghcr.io/k2exe/aredn-go-builder:ramips-mt7621-4.26.7.0
 
           - target: mediatek-filogic
             arch: aarch64_cortex-a53
+            image: ghcr.io/k2exe/aredn-go-builder:mediatek-filogic-4.26.7.0
 
           - target: x86-64
             arch: x86_64
+            image: ghcr.io/k2exe/aredn-go-builder:x86-64-4.26.7.0
+
+    container:
+      image: ${{ matrix.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user 0
 
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
+      - name: Verify prepared builder
+        shell: bash
+        env:
+          EXPECTED_TARGET: ${{ matrix.target }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+
+          runuser -u aredn -- \
+            /opt/aredn-go-builder/scripts/verify-image.sh \
+              /opt/aredn-prepared
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          metadata = json.loads(
+              Path(
+                  "/opt/aredn-prepared/.aredn-go-builder.json"
+              ).read_text()
+          )
+
+          expected = {
+              "target": os.environ["EXPECTED_TARGET"],
+              "package_arch": os.environ["EXPECTED_ARCH"],
+              "aredn_ref": "4.26.7.0",
+              "aredn_commit": (
+                  "93ad9ea94fb2c0edd829c513305ffbaa90c07858"
+              ),
+          }
+
+          for key, value in expected.items():
+              actual = metadata.get(key)
+              if actual != value:
+                  raise SystemExit(
+                      f"{key}: expected {value!r}, found {actual!r}"
+                  )
+
+          print(
+              "Prepared image metadata matches "
+              "AAMM-NG release requirements."
+          )
+          PY
+
+      - name: Attach prepared AREDN tree
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_root="/tmp/aamm-ng-runner/aamm-ng-aredn-${{ matrix.arch }}"
+
+          install -d \
+            -o aredn \
+            -g aredn \
+            "$GITHUB_WORKSPACE/dist" \
+            /tmp/aamm-ng-runner \
+            "$build_root"
+
+          ln -s \
+            /opt/aredn-prepared \
+            "$build_root/aredn"
+
+          test \
+            "$(readlink -f "$build_root/aredn")" \
+            = "/opt/aredn-prepared"
+
       - name: Build and verify APK
         shell: bash
         run: |
-          scripts/build-aredn-apk.sh \
-            "${{ matrix.target }}" \
-            "${{ matrix.arch }}"
+          set -euo pipefail
+
+          runuser -u aredn -- \
+            env \
+              HOME=/home/aredn \
+              RUNNER_TEMP=/tmp/aamm-ng-runner \
+              DIST_DIR="$GITHUB_WORKSPACE/dist" \
+              AREDN_REF="$AREDN_REF" \
+              AREDN_COMMIT="$AREDN_COMMIT" \
+              BUILD_PHASE=build \
+            bash scripts/build-aredn-apk.sh \
+              "${{ matrix.target }}" \
+              "${{ matrix.arch }}"
 
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
