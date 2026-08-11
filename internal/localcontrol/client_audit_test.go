@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/k2exe/aamm-ng/internal/arednsource"
 	"github.com/k2exe/aamm-ng/internal/auditidentity"
 )
 
@@ -86,5 +87,84 @@ func TestMutationClientsRequireAuthenticatedActor(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestSourceAttributionUsesConfiguredResolver(t *testing.T) {
+	client := &Client{
+		resolveSource: func(
+			ctx context.Context,
+			sourceIP string,
+		) (arednsource.Attribution, error) {
+			if sourceIP != "192.0.2.44" {
+				t.Fatalf(
+					"source IP = %q; want 192.0.2.44",
+					sourceIP,
+				)
+			}
+
+			return arednsource.Attribution{
+				SourceNode: "TEST-NODE-B",
+				SourceHost: "test-workstation",
+			}, nil
+		},
+	}
+
+	got := client.sourceAttribution(
+		context.Background(),
+		"192.0.2.44",
+	)
+
+	want := arednsource.Attribution{
+		SourceNode: "TEST-NODE-B",
+		SourceHost: "test-workstation",
+	}
+
+	if got != want {
+		t.Fatalf(
+			"attribution = %#v; want %#v",
+			got,
+			want,
+		)
+	}
+}
+
+func TestSourceAttributionIsBestEffort(t *testing.T) {
+	client := &Client{
+		resolveSource: func(
+			context.Context,
+			string,
+		) (arednsource.Attribution, error) {
+			return arednsource.Attribution{},
+				errors.New("lookup unavailable")
+		},
+	}
+
+	got := client.sourceAttribution(
+		context.Background(),
+		"192.0.2.44",
+	)
+
+	if got != (arednsource.Attribution{}) {
+		t.Fatalf(
+			"attribution = %#v; want empty",
+			got,
+		)
+	}
+}
+
+func TestSourceAttributionAllowsNilResolver(t *testing.T) {
+	client := &Client{}
+
+	got := client.sourceAttribution(
+		context.Background(),
+		"192.0.2.44",
+	)
+
+	if got != (arednsource.Attribution{}) {
+		t.Fatalf(
+			"attribution = %#v; want empty",
+			got,
+		)
 	}
 }
