@@ -202,6 +202,13 @@ func handleConnection(
 		request, decodeErr := DecodeRequest(requestData)
 		if decodeErr != nil {
 			response = responseForError(decodeErr)
+
+			writeRejectedMutationAudit(
+				auditWriter,
+				time.Now().UTC(),
+				request,
+				response,
+			)
 		} else {
 			response = Dispatch(store, request)
 

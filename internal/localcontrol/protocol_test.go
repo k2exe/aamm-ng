@@ -238,6 +238,36 @@ func TestDecodeRequestRequiresWriteMessage(t *testing.T) {
 	}
 }
 
+func TestDecodeRequestReturnsParsedMutationOnValidationError(
+	t *testing.T,
+) {
+	request, err := DecodeRequest([]byte(
+		`{"version":1,"operation":"write","target":"all","message":"test"}`,
+	))
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf(
+			"DecodeRequest() error = %v; want ErrInvalidRequest",
+			err,
+		)
+	}
+
+	if request.Operation != OperationWrite {
+		t.Fatalf(
+			"Operation = %q; want %q",
+			request.Operation,
+			OperationWrite,
+		)
+	}
+
+	if request.Target != "all" {
+		t.Fatalf(
+			"Target = %q; want all",
+			request.Target,
+		)
+	}
+}
+
 func TestResponseConstructors(t *testing.T) {
 	success := Success(map[string]string{"status": "ok"})
 

@@ -65,7 +65,7 @@ func DecodeRequest(data []byte) (Request, error) {
 	var request Request
 
 	if err := decoder.Decode(&request); err != nil {
-		return Request{}, fmt.Errorf(
+		return request, fmt.Errorf(
 			"%w: %v",
 			ErrInvalidRequest,
 			err,
@@ -76,13 +76,13 @@ func DecodeRequest(data []byte) (Request, error) {
 
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return Request{}, fmt.Errorf(
+			return request, fmt.Errorf(
 				"%w: multiple JSON values",
 				ErrInvalidRequest,
 			)
 		}
 
-		return Request{}, fmt.Errorf(
+		return request, fmt.Errorf(
 			"%w: trailing data: %v",
 			ErrInvalidRequest,
 			err,
@@ -90,7 +90,7 @@ func DecodeRequest(data []byte) (Request, error) {
 	}
 
 	if err := validateRequest(request); err != nil {
-		return Request{}, err
+		return request, err
 	}
 
 	return request, nil

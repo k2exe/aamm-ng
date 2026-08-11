@@ -5,7 +5,35 @@ import (
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/k2exe/aamm-ng/internal/alerttarget"
 )
+
+func writeRejectedMutationAudit(
+	writer io.Writer,
+	timestamp time.Time,
+	request Request,
+	response Response,
+) {
+	if writer == nil || !isMutation(request.Operation) {
+		return
+	}
+
+	safeRequest := Request{
+		Operation: request.Operation,
+	}
+
+	if target, err := alerttarget.Parse(request.Target); err == nil {
+		safeRequest.Target = target.String()
+	}
+
+	writeMutationAudit(
+		writer,
+		timestamp,
+		safeRequest,
+		response,
+	)
+}
 
 func writeMutationAudit(
 	writer io.Writer,
