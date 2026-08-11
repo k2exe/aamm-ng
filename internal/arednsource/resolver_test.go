@@ -127,6 +127,50 @@ func TestResolveUsesLongestMatchingRoute(t *testing.T) {
 	}
 }
 
+func TestResolveDuplicateEqualLengthRoutesPreserveAttribution(t *testing.T) {
+	routes := `198.51.100.16/28 via 192.0.2.20 dev testwg0 table 20 metric 1 onlink
+198.51.100.16/28 via 192.0.2.20 dev testwg0 table 21 metric 1 onlink
+`
+
+	got, err := Resolve(
+		"198.51.100.29",
+		routes,
+		[]string{testHosts},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.SourceNode != "TEST-NODE-B" {
+		t.Fatalf(
+			"source node = %q; want TEST-NODE-B",
+			got.SourceNode,
+		)
+	}
+}
+
+func TestResolveDuplicateEqualLengthRoutesStillDetectAmbiguousOwnership(t *testing.T) {
+	hosts := testHosts + `
+##203.0.113.20##
+203.0.113.20     TEST-NODE-D
+198.51.100.22    lan.TEST-NODE-D.local.mesh
+`
+
+	routes := `198.51.100.16/28 via 192.0.2.20 dev testwg0 table 20 metric 1 onlink
+198.51.100.16/28 via 203.0.113.20 dev testwg1 table 21 metric 1 onlink
+`
+
+	_, err := Resolve(
+		"198.51.100.29",
+		routes,
+		[]string{hosts},
+	)
+
+	if !errors.Is(err, ErrAmbiguous) {
+		t.Fatalf("error = %v; want ErrAmbiguous", err)
+	}
+}
+
 func TestResolveIgnoresSpecialBlackholeRoute(t *testing.T) {
 	got, err := Resolve(
 		"198.51.100.29",
