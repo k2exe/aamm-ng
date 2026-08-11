@@ -248,3 +248,65 @@ func TestResolveDoesNotUseDefaultRouteForOwnership(t *testing.T) {
 		t.Fatalf("attribution = %#v; want empty", got)
 	}
 }
+
+func TestResolveKeepsFirstCanonicalSameOriginatorNodeName(
+	t *testing.T,
+) {
+	hosts := `##192.0.2.70##
+192.0.2.70 TEST-NODE-MAIN
+192.0.2.70 supernode.TEST-NODE-MAIN.local.mesh
+`
+
+	got, err := Resolve(
+		"192.0.2.70",
+		"",
+		[]string{hosts},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := Attribution{
+		SourceNode: "TEST-NODE-MAIN",
+	}
+
+	if got != want {
+		t.Fatalf(
+			"attribution = %#v; want %#v",
+			got,
+			want,
+		)
+	}
+}
+
+func TestResolveSkipsSameOriginatorMetadataBeforeCanonicalNode(
+	t *testing.T,
+) {
+	hosts := `##192.0.2.80##
+192.0.2.80 supernode.TEST-NODE-MAIN.local.mesh
+192.0.2.80 TEST-NODE-MAIN
+198.51.100.80 test-workstation
+`
+
+	got, err := Resolve(
+		"198.51.100.80",
+		"",
+		[]string{hosts},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := Attribution{
+		SourceNode: "TEST-NODE-MAIN",
+		SourceHost: "test-workstation",
+	}
+
+	if got != want {
+		t.Fatalf(
+			"attribution = %#v; want %#v",
+			got,
+			want,
+		)
+	}
+}
