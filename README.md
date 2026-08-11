@@ -17,3 +17,7 @@ AAMM-NG is an independent community project and is not affiliated
 with or endorsed by Amateur Radio Emergency Data Network, Inc.
 AREDN® is a registered trademark of Amateur Radio Emergency Data
 Network, Inc.
+
+## Documentation
+
+- AREDN alert distribution setup: `docs/aredn-alert-distribution.md`
