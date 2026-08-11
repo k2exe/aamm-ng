@@ -24,6 +24,16 @@ esac
 
 AREDN_REF="${AREDN_REF:-4.26.7.0}"
 AREDN_COMMIT="${AREDN_COMMIT:-93ad9ea94fb2c0edd829c513305ffbaa90c07858}"
+BUILD_PHASE="${BUILD_PHASE:-all}"
+
+case "$BUILD_PHASE" in
+    all | prepare | build)
+        ;;
+    *)
+        echo "unsupported BUILD_PHASE: ${BUILD_PHASE}" >&2
+        exit 2
+        ;;
+esac
 
 REPO_ROOT="$(
     cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -62,41 +72,70 @@ echo "Package architecture:${ARCH}"
 echo "Package version:     ${PKG_VERSION}-r${PKG_RELEASE}"
 echo "Package source:      ${PKG_SOURCE_VERSION}"
 
-rm -rf "$BUILD_ROOT"
-mkdir -p "$BUILD_ROOT" "$DIST_DIR"
-
-echo
-echo "=== clone AREDN ${AREDN_REF} ==="
-git clone \
-    --depth 1 \
-    --branch "$AREDN_REF" \
-    https://github.com/aredn/aredn.git \
-    "$AREDN_ROOT"
-
 if [[ ! "$AREDN_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
     echo "AREDN_COMMIT must be a full Git commit SHA" >&2
     exit 1
 fi
 
-actual_aredn_commit="$(
-    git -C "$AREDN_ROOT" rev-parse HEAD
-)"
+if [[ "$BUILD_PHASE" == "all" || "$BUILD_PHASE" == "prepare" ]]; then
+    rm -rf "$BUILD_ROOT"
+    mkdir -p "$BUILD_ROOT" "$DIST_DIR"
 
-if [[ "$actual_aredn_commit" != "$AREDN_COMMIT" ]]; then
-    echo \
-        "AREDN ${AREDN_REF} resolved to ${actual_aredn_commit}, expected ${AREDN_COMMIT}" \
-        >&2
-    exit 1
+    echo
+    echo "=== clone AREDN ${AREDN_REF} ==="
+    git clone \
+        --depth 1 \
+        --branch "$AREDN_REF" \
+        https://github.com/aredn/aredn.git \
+        "$AREDN_ROOT"
+
+    actual_aredn_commit="$(
+        git -C "$AREDN_ROOT" rev-parse HEAD
+    )"
+
+    if [[ "$actual_aredn_commit" != "$AREDN_COMMIT" ]]; then
+        echo \
+            "AREDN ${AREDN_REF} resolved to ${actual_aredn_commit}, expected ${AREDN_COMMIT}" \
+            >&2
+        exit 1
+    fi
+
+    echo "AREDN source identity verified."
+
+    echo
+    echo "=== prepare AREDN target ${TARGET} ==="
+    make \
+        -C "$AREDN_ROOT" \
+        TARGET="$TARGET" \
+        prepare
+
+    if [[ "$BUILD_PHASE" == "prepare" ]]; then
+        echo
+        echo "=== AREDN target preparation complete ==="
+        exit 0
+    fi
+else
+    mkdir -p "$DIST_DIR"
+
+    if [[ ! -d "$AREDN_ROOT/.git" ||
+          ! -d "$AREDN_ROOT/openwrt" ]]; then
+        echo "prepared AREDN tree not found: $AREDN_ROOT" >&2
+        exit 1
+    fi
+
+    actual_aredn_commit="$(
+        git -C "$AREDN_ROOT" rev-parse HEAD
+    )"
+
+    if [[ "$actual_aredn_commit" != "$AREDN_COMMIT" ]]; then
+        echo \
+            "prepared AREDN tree is ${actual_aredn_commit}, expected ${AREDN_COMMIT}" \
+            >&2
+        exit 1
+    fi
+
+    echo "Prepared AREDN source identity verified."
 fi
-
-echo "AREDN source identity verified."
-
-echo
-echo "=== prepare AREDN target ${TARGET} ==="
-make \
-    -C "$AREDN_ROOT" \
-    TARGET="$TARGET" \
-    prepare
 
 echo
 echo "=== stage AAMM-NG package ==="
@@ -112,6 +151,25 @@ echo "=== staged package metadata ==="
 grep -E \
     '^PKG_(VERSION|RELEASE|SOURCE_VERSION):=' \
     "$AREDN_ROOT/openwrt/package/aamm-ng/Makefile"
+
+echo
+echo "=== select AAMM-NG package ==="
+OPENWRT_CONFIG="$AREDN_ROOT/openwrt/.config"
+
+sed -i \
+    -e '/^CONFIG_PACKAGE_aamm-ng=/d' \
+    -e '/^# CONFIG_PACKAGE_aamm-ng is not set$/d' \
+    "$OPENWRT_CONFIG"
+
+echo 'CONFIG_PACKAGE_aamm-ng=m' >> "$OPENWRT_CONFIG"
+
+make \
+    -C "$AREDN_ROOT/openwrt" \
+    defconfig
+
+grep -Fx \
+    'CONFIG_PACKAGE_aamm-ng=m' \
+    "$OPENWRT_CONFIG"
 
 echo
 echo "=== clear version-keyed AAMM-NG source cache ==="
