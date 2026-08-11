@@ -2,11 +2,13 @@ package webadmin
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/k2exe/aamm-ng/internal/auditidentity"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
@@ -472,7 +474,7 @@ func TestHandlerDoesNotCallControlWithoutAuthentication(t *testing.T) {
 		lister,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodGet,
 		"http://node.local.mesh/",
 		nil,
@@ -550,6 +552,24 @@ func TestHandlerPreservesSecurityHeaders(t *testing.T) {
 	}
 }
 
+func newTestRequest(
+	method string,
+	target string,
+	body io.Reader,
+) *http.Request {
+	request := httptest.NewRequest(
+		method,
+		target,
+		body,
+	)
+	request.Header.Set(
+		auditidentity.SourceIPHeader,
+		"10.79.135.157",
+	)
+
+	return request
+}
+
 func authenticatedRequest(
 	t *testing.T,
 	method string,
@@ -557,7 +577,7 @@ func authenticatedRequest(
 ) *http.Request {
 	t.Helper()
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		method,
 		"http://node.local.mesh"+path,
 		nil,
@@ -567,7 +587,6 @@ func authenticatedRequest(
 		"Cookie",
 		"authV1=test-value",
 	)
-
 	return request
 }
 
@@ -750,7 +769,7 @@ func TestHandlerCreatesNewAlert(t *testing.T) {
 		alerts,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313/alerts/new",
 		strings.NewReader(
@@ -826,7 +845,7 @@ func TestHandlerRejectsExistingNewAlertTarget(t *testing.T) {
 		alerts,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313/alerts/new",
 		strings.NewReader(
@@ -885,7 +904,7 @@ func TestHandlerRejectsCreateWithoutOrigin(t *testing.T) {
 		alerts,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313/alerts/new",
 		strings.NewReader(
@@ -1200,7 +1219,7 @@ func TestHandlerDoesNotReadAlertWithoutAuthentication(t *testing.T) {
 		alerts,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodGet,
 		"http://node.local.mesh/alerts/all",
 		nil,
@@ -1275,7 +1294,7 @@ func authenticatedMutationRequest(
 ) *http.Request {
 	t.Helper()
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313"+path,
 		strings.NewReader("message="+message),
@@ -1561,7 +1580,7 @@ func TestHandlerDoesNotWriteWithoutAuthentication(t *testing.T) {
 		alerts,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313/alerts/all",
 		strings.NewReader("message=Updated"),
@@ -1887,7 +1906,7 @@ func TestHandlerDoesNotConvertWithoutAuthentication(t *testing.T) {
 		alerts,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313/alerts/legacy/convert",
 		strings.NewReader("message=Replacement"),
@@ -1994,7 +2013,7 @@ func authenticatedDeleteRequest(
 ) *http.Request {
 	t.Helper()
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313"+path,
 		strings.NewReader("confirm="+confirm),
@@ -2319,7 +2338,7 @@ func TestHandlerDoesNotDeleteWithoutAuthentication(t *testing.T) {
 		alerts,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"http://node.local.mesh:11313/alerts/all/delete",
 		strings.NewReader("confirm=all"),

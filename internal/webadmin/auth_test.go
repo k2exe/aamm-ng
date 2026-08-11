@@ -39,6 +39,10 @@ func TestRequireAdminAllowsAuthenticatedRequest(t *testing.T) {
 		"Cookie",
 		"other=ignore; authV1=test-value",
 	)
+	request.Header.Set(
+		auditidentity.SourceIPHeader,
+		"10.79.135.157",
+	)
 
 	response := httptest.NewRecorder()
 
@@ -93,6 +97,20 @@ func TestRequireAdminAddsAuthenticatedIdentityToContext(t *testing.T) {
 				)
 			}
 
+			if identity.SourceIP != "10.79.135.157" {
+				t.Fatalf(
+					"identity source IP = %q; want 10.79.135.157",
+					identity.SourceIP,
+				)
+			}
+
+			if got := request.Header.Get(auditidentity.SourceIPHeader); got != "" {
+				t.Fatalf(
+					"trusted source header still present = %q",
+					got,
+				)
+			}
+
 			writer.WriteHeader(http.StatusOK)
 		}),
 	)
@@ -105,6 +123,10 @@ func TestRequireAdminAddsAuthenticatedIdentityToContext(t *testing.T) {
 	request.Header.Set(
 		"Cookie",
 		"authV1=sensitive-value",
+	)
+	request.Header.Set(
+		auditidentity.SourceIPHeader,
+		"10.79.135.157",
 	)
 
 	response := httptest.NewRecorder()
@@ -295,6 +317,10 @@ func TestRequireAdminSetsNoStoreHeaders(t *testing.T) {
 		"Cookie",
 		"authV1=test-value",
 	)
+	request.Header.Set(
+		auditidentity.SourceIPHeader,
+		"10.79.135.157",
+	)
 
 	response := httptest.NewRecorder()
 
@@ -336,6 +362,86 @@ func TestRequireAdminSetsNoStoreHeaders(t *testing.T) {
 		t.Fatalf(
 			"X-Content-Type-Options = %q; want nosniff",
 			got,
+		)
+	}
+}
+
+func TestRequireAdminFailsClosedWithoutSourceIP(t *testing.T) {
+	verifier := &fakeVerifier{
+		authenticated: true,
+		name:          "K2EXE-BBRC-CLOUD-RTR",
+	}
+
+	handler := RequireAdmin(
+		verifier,
+		http.HandlerFunc(func(
+			writer http.ResponseWriter,
+			request *http.Request,
+		) {
+			t.Fatal("protected handler called")
+		}),
+	)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"http://node.local.mesh/",
+		nil,
+	)
+	request.Header.Set(
+		"Cookie",
+		"authV1=test-value",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusServiceUnavailable,
+		)
+	}
+}
+
+func TestRequireAdminFailsClosedWithInvalidSourceIP(t *testing.T) {
+	verifier := &fakeVerifier{
+		authenticated: true,
+		name:          "K2EXE-BBRC-CLOUD-RTR",
+	}
+
+	handler := RequireAdmin(
+		verifier,
+		http.HandlerFunc(func(
+			writer http.ResponseWriter,
+			request *http.Request,
+		) {
+			t.Fatal("protected handler called")
+		}),
+	)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"http://node.local.mesh/",
+		nil,
+	)
+	request.Header.Set(
+		"Cookie",
+		"authV1=test-value",
+	)
+	request.Header.Set(
+		auditidentity.SourceIPHeader,
+		"not-an-ip-address",
+	)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusServiceUnavailable,
 		)
 	}
 }
