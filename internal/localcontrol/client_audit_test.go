@@ -168,3 +168,138 @@ func TestSourceAttributionAllowsNilResolver(t *testing.T) {
 		)
 	}
 }
+
+func TestMutationAuditFromContextBuildsAttribution(t *testing.T) {
+	client := &Client{
+		resolveSource: func(
+			ctx context.Context,
+			sourceIP string,
+		) (arednsource.Attribution, error) {
+			if sourceIP != "192.0.2.44" {
+				t.Fatalf(
+					"source IP = %q; want 192.0.2.44",
+					sourceIP,
+				)
+			}
+
+			return arednsource.Attribution{
+				SourceNode: "TEST-NODE-B",
+				SourceHost: "test-workstation",
+			}, nil
+		},
+	}
+
+	ctx := auditidentity.WithIdentity(
+		context.Background(),
+		auditidentity.Identity{
+			Name:     "TEST-NODE-A",
+			SourceIP: "192.0.2.44",
+		},
+	)
+
+	got, err := client.mutationAuditFromContext(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := mutationAuditContext{
+		AuthNode:   "TEST-NODE-A",
+		AuthRole:   "admin",
+		SourceIP:   "192.0.2.44",
+		SourceNode: "TEST-NODE-B",
+		SourceHost: "test-workstation",
+	}
+
+	if got != want {
+		t.Fatalf(
+			"audit context = %#v; want %#v",
+			got,
+			want,
+		)
+	}
+}
+
+func TestMutationAuditFromContextKeepsRequiredFieldsWhenLookupFails(
+	t *testing.T,
+) {
+	client := &Client{
+		resolveSource: func(
+			context.Context,
+			string,
+		) (arednsource.Attribution, error) {
+			return arednsource.Attribution{},
+				errors.New("lookup unavailable")
+		},
+	}
+
+	ctx := auditidentity.WithIdentity(
+		context.Background(),
+		auditidentity.Identity{
+			Name:     "TEST-NODE-A",
+			SourceIP: "192.0.2.44",
+		},
+	)
+
+	got, err := client.mutationAuditFromContext(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := mutationAuditContext{
+		AuthNode: "TEST-NODE-A",
+		AuthRole: "admin",
+		SourceIP: "192.0.2.44",
+	}
+
+	if got != want {
+		t.Fatalf(
+			"audit context = %#v; want %#v",
+			got,
+			want,
+		)
+	}
+}
+
+func TestMutationAuditFromContextCanonicalizesSourceAddress(t *testing.T) {
+	client := &Client{}
+
+	ctx := auditidentity.WithIdentity(
+		context.Background(),
+		auditidentity.Identity{
+			Name:     "TEST-NODE-A",
+			SourceIP: "::ffff:192.0.2.44",
+		},
+	)
+
+	got, err := client.mutationAuditFromContext(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.SourceIP != "192.0.2.44" {
+		t.Fatalf(
+			"source IP = %q; want 192.0.2.44",
+			got.SourceIP,
+		)
+	}
+}
+
+func TestMutationAuditFromContextRejectsMissingSourceAddress(t *testing.T) {
+	client := &Client{}
+
+	ctx := auditidentity.WithIdentity(
+		context.Background(),
+		auditidentity.Identity{
+			Name: "TEST-NODE-A",
+		},
+	)
+
+	_, err := client.mutationAuditFromContext(ctx)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf(
+			"error = %v; want ErrInvalidRequest",
+			err,
+		)
+	}
+}
