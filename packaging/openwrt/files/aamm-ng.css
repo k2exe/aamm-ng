@@ -365,3 +365,46 @@
         margin-left: 0;
     }
 }
+
+/* Local AREDN node picker */
+
+#ctrl-modal .aamm-target-picker
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+#ctrl-modal .aamm-target-picker .aamm-create-target
+{
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    margin-top: 0;
+}
+
+#ctrl-modal .aamm-target-picker button
+{
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+#ctrl-modal .aamm-node-status
+{
+    min-height: 1.2em;
+}
+
+@media (max-width: 700px)
+{
+    #ctrl-modal .aamm-target-picker
+    {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    #ctrl-modal .aamm-target-picker .aamm-create-target
+    {
+        width: 100%;
+    }
+}

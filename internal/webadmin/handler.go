@@ -443,23 +443,46 @@ var landingTemplate = template.Must(
 			>
 				<div class="o">Target</div>
 
-				<input
-					class="aamm-create-target"
-					id="target"
-					name="target"
-					type="text"
-					autocomplete="off"
-					autofocus
-					maxlength="63"
-					pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}"
-					placeholder="all or node-name"
-					required
+				<div
+					class="aamm-target-picker"
+					data-aamm-node-endpoint="{{.BasePath}}/api/local-nodes"
 				>
+					<input
+						class="aamm-create-target"
+						id="target"
+						name="target"
+						type="text"
+						list="aamm-local-nodes"
+						autocomplete="off"
+						autofocus
+						maxlength="63"
+						pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}"
+						placeholder="all or node-name"
+						required
+					>
+
+					<button
+						type="button"
+						data-aamm-find-node
+					>
+						Find node
+					</button>
+
+					<datalist id="aamm-local-nodes"></datalist>
+				</div>
 
 				<div class="m">
-					Use <strong>all</strong> for all nodes, or enter a node target.
+					Use <strong>all</strong> for all nodes, enter a node target,
+					or use <strong>Find node</strong> to search nodes directly known
+					to this AREDN node.
 					Letters, numbers, hyphen, and underscore are supported.
 				</div>
+
+				<div
+					class="m aamm-node-status"
+					data-aamm-node-status
+					aria-live="polite"
+				></div>
 
 				<div class="o">Message</div>
 
