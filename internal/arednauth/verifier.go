@@ -13,6 +13,10 @@ import (
 )
 
 const (
+	// ProductionEndpoint is deliberately fixed to AREDN's loopback-only
+	// authentication endpoint. The authV1 credential is derived from the
+	// root entry in /etc/shadow; never make this endpoint configurable or
+	// forward authV1 to a non-loopback destination.
 	ProductionEndpoint = "http://127.0.0.1/a/whoami"
 
 	maxResponseBytes = 4096
@@ -76,6 +80,9 @@ func (v *Verifier) VerifySession(
 	ctx context.Context,
 	authV1 string,
 ) (Session, error) {
+	// authV1 is credential-equivalent material derived by AREDN from the
+	// root /etc/shadow entry. Never log, persist, include it in errors, or
+	// forward it anywhere except the fixed loopback authentication endpoint.
 	if authV1 == "" {
 		return Session{}, nil
 	}
