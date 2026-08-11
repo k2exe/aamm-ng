@@ -1,13 +1,14 @@
 # AREDN Alert Distribution Setup
 
-AAMM-NG manages alert files on the node where it is installed. Other AREDN
-nodes must be configured to fetch those alerts.
+AAMM-NG manages alert files on the node where AAMM-NG is installed.
+
+Other AREDN nodes must be configured to get these alert files.
 
 ## Publisher
 
-AAMM-NG stores managed alert files in `/www/aam`.
+AAMM-NG stores the managed alert files in `/www/aam`.
 
-AREDN's web server exposes that directory as:
+The AREDN web server makes this directory available at:
 
 `http://<publisher-node>/aam`
 
@@ -15,65 +16,76 @@ Example:
 
 `http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam`
 
-Common files are:
+AAMM-NG can create these files:
 
 - `all.txt`
 - `<nodename>.txt`
 - `<groupname>.txt`
 
-## Consumer setup
+## Configure a consumer node
 
-On each AREDN node that should receive alerts, open **Internal Services**.
+1. Open **Internal Services** on the AREDN node.
 
-Set **Local Message URL** to the publisher, for example:
+2. Set **Local Message URL** to the AAMM-NG publisher.
 
-`http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam`
+   Example:
 
-Optionally set **Message Groups** to a comma-separated list such as:
+   `http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam`
 
-`wx,skywarn`
+3. If the node must receive group alerts, set **Message Groups**.
 
-Choose the desired **Message Updates** polling interval.
+   Example:
 
-Equivalent UCI configuration is:
+   `wx,skywarn`
+
+4. Set **Message Updates** to the required polling interval.
+
+The equivalent UCI commands are:
 
     uci set aredn.@alerts[0].localpath='http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam'
     uci set aredn.@alerts[0].groups='wx,skywarn'
     uci commit aredn
 
-Groups are optional.
+The `groups` setting is optional.
 
-AAMM-NG does not automatically modify `localpath`, `groups`, or `pollrate`.
-Those are operator-controlled AREDN settings.
+AAMM-NG does not change `localpath`, `groups`, or `pollrate`.
 
-## How AREDN selects alerts
+The operator controls these AREDN settings.
 
-AREDN checks the configured source for:
+## Alert selection
 
-1. the consuming node's `<nodename>.txt`
+AREDN checks the configured source in this order:
+
+1. `<nodename>.txt`
 2. each configured `<groupname>.txt`
 3. `all.txt`
 
-Node and group names are normalized to lowercase when AREDN looks up files.
+AREDN changes node names and group names to lowercase before it checks the files.
 
-## Test connectivity
+## Test the connection
 
-From a consuming node:
+Run this command on a consumer node:
 
     wget -q -T 5 -O - http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam/all.txt
 
-A successful request prints the current `all.txt` alert.
+If the command is successful, it shows the current `all.txt` alert.
 
-`127.0.0.1` is appropriate only when the publisher and consumer are the same
-node. On another AREDN node, loopback refers to that consuming node itself.
+Use `127.0.0.1` only when the publisher and the consumer are the same node.
+
+On a different node, `127.0.0.1` refers to the consumer node.
 
 ## Troubleshooting
 
-If an alert exists in AAMM-NG but does not appear on a consuming node, verify:
+If the consumer does not show an alert, do these checks:
 
-- the expected file exists under `/www/aam`
-- the consuming node can fetch it over HTTP
-- `aredn.@alerts[0].localpath` points to the correct publisher
-- the intended groups are configured
-- the node or group name matches the alert filename
-- AREDN has completed another message polling cycle
+1. Make sure that the expected file is in `/www/aam`.
+
+2. Make sure that the consumer can get the file through HTTP.
+
+3. Make sure that `aredn.@alerts[0].localpath` identifies the correct publisher.
+
+4. Make sure that the required groups are configured.
+
+5. Make sure that the node name or group name is the same as the alert filename.
+
+6. Wait for the next AREDN message polling cycle and test again.
