@@ -2,11 +2,11 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=aamm-ng
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=14
+PKG_RELEASE:=15
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/k2exe/aamm-ng.git
-PKG_SOURCE_VERSION:=991919d78b3f89dbe4fd95c885a2ed32b7646310
+PKG_SOURCE_VERSION:=2cb4b92a84dee6aa1eafaaa1f4fe24bb69eae1c1
 PKG_MIRROR_HASH:=skip
 
 PKG_LICENSE:=Apache-2.0
