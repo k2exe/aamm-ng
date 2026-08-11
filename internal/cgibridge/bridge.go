@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/k2exe/aamm-ng/internal/auditidentity"
 )
 
 const (
@@ -34,6 +37,10 @@ func Run(
 		stdout == nil ||
 		getenv == nil {
 		return ErrInvalidEnvironment
+	}
+
+	if _, err := sourceAddress(getenv("REMOTE_ADDR")); err != nil {
+		return err
 	}
 
 	request, err := newRequest(
@@ -176,6 +183,18 @@ func newRequest(
 		ExternalBasePath,
 	)
 
+	if value := getenv("REMOTE_ADDR"); value != "" {
+		sourceIP, err := sourceAddress(value)
+		if err != nil {
+			return nil, err
+		}
+
+		request.Header.Set(
+			auditidentity.SourceIPHeader,
+			sourceIP,
+		)
+	}
+
 	if value := getenv("CONTENT_LENGTH"); value != "" {
 		length, err := strconv.ParseInt(
 			value,
@@ -193,6 +212,18 @@ func newRequest(
 	}
 
 	return request, nil
+}
+
+func sourceAddress(value string) (string, error) {
+	address, err := netip.ParseAddr(value)
+	if err != nil {
+		return "", fmt.Errorf(
+			"%w: invalid REMOTE_ADDR",
+			ErrInvalidEnvironment,
+		)
+	}
+
+	return address.Unmap().String(), nil
 }
 
 func requestPath(getenv Getenv) (string, error) {

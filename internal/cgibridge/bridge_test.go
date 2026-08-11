@@ -326,3 +326,82 @@ func TestNewRequestRejectsRequestURIOutsideApplication(t *testing.T) {
 		)
 	}
 }
+
+func TestNewRequestUsesCGIRemoteAddress(t *testing.T) {
+	values := map[string]string{
+		"REQUEST_METHOD":          "GET",
+		"HTTP_HOST":               "node.local.mesh",
+		"REMOTE_ADDR":             "10.79.135.157",
+		"HTTP_X_AAMM_REMOTE_ADDR": "203.0.113.99",
+	}
+
+	request, err := newRequest(
+		context.Background(),
+		http.NoBody,
+		func(name string) string {
+			return values[name]
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := request.Header.Get("X-AAMM-Remote-Addr"); got != "10.79.135.157" {
+		t.Fatalf(
+			"source address = %q; want 10.79.135.157",
+			got,
+		)
+	}
+}
+
+func TestRunRejectsMissingRemoteAddress(t *testing.T) {
+	err := Run(
+		context.Background(),
+		http.NoBody,
+		io.Discard,
+		func(name string) string {
+			switch name {
+			case "REQUEST_METHOD":
+				return "GET"
+			case "HTTP_HOST":
+				return "node.local.mesh"
+			default:
+				return ""
+			}
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidEnvironment) {
+		t.Fatalf(
+			"error = %v; want ErrInvalidEnvironment",
+			err,
+		)
+	}
+}
+
+func TestRunRejectsInvalidRemoteAddress(t *testing.T) {
+	err := Run(
+		context.Background(),
+		http.NoBody,
+		io.Discard,
+		func(name string) string {
+			switch name {
+			case "REQUEST_METHOD":
+				return "GET"
+			case "HTTP_HOST":
+				return "node.local.mesh"
+			case "REMOTE_ADDR":
+				return "not-an-ip-address"
+			default:
+				return ""
+			}
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidEnvironment) {
+		t.Fatalf(
+			"error = %v; want ErrInvalidEnvironment",
+			err,
+		)
+	}
+}
