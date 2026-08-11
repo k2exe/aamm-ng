@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/alerttarget"
+	"github.com/k2exe/aamm-ng/internal/arednnodes"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
@@ -20,11 +21,38 @@ type AlertManager interface {
 	Delete(context.Context, string) (localcontrol.DeleteResult, error)
 }
 
+type nodeFinder interface {
+	LocalNodes(context.Context) ([]string, error)
+}
+
 func NewHandler(
 	verifier SessionVerifier,
 	alerts AlertManager,
 ) http.Handler {
+	return newHandler(
+		verifier,
+		alerts,
+		arednnodes.NewFetcher(),
+	)
+}
+
+func newHandler(
+	verifier SessionVerifier,
+	alerts AlertManager,
+	nodes nodeFinder,
+) http.Handler {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/local-nodes", func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		handleLocalNodes(
+			writer,
+			request,
+			nodes,
+		)
+	})
 
 	mux.HandleFunc("/", func(
 		writer http.ResponseWriter,
