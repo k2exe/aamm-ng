@@ -87,7 +87,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	writeResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"write","target":"all","message":"Net open"}`,
+		`{"version":1,"operation":"write","target":"all","message":"Net open","actor":"K2EXE"}`,
 	)
 
 	requireSuccessResult(
@@ -115,7 +115,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	convertResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"convert","target":"legacy","message":"Converted"}`,
+		`{"version":1,"operation":"convert","target":"legacy","message":"Converted","actor":"K2EXE"}`,
 	)
 
 	convertResult := resultObject(t, convertResponse)
@@ -160,7 +160,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	deleteResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"delete","target":"all"}`,
+		`{"version":1,"operation":"delete","target":"all","actor":"K2EXE"}`,
 	)
 
 	deleteResult := resultObject(t, deleteResponse)

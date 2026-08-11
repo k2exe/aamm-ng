@@ -29,6 +29,11 @@ func (client *Client) Write(
 		)
 	}
 
+	actor, err := actorFromContext(ctx)
+	if err != nil {
+		return WriteResult{}, err
+	}
+
 	response, err := client.Call(
 		ctx,
 		Request{
@@ -36,6 +41,7 @@ func (client *Client) Write(
 			Operation: OperationWrite,
 			Target:    parsedTarget.String(),
 			Message:   parsedMessage.String(),
+			Actor:     actor,
 		},
 	)
 	if err != nil {

@@ -2,7 +2,6 @@ package localcontrol
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -83,7 +82,7 @@ func TestClientDeleteSendsCanonicalRequest(t *testing.T) {
 	}
 
 	result, err := client.Delete(
-		context.Background(),
+		testMutationContext(),
 		"ALL",
 	)
 	if err != nil {
@@ -118,7 +117,7 @@ func TestClientDeleteRejectsInvalidTargetBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := client.Delete(
-		context.Background(),
+		testMutationContext(),
 		"../all",
 	)
 
@@ -181,7 +180,7 @@ func TestClientDeleteReturnsRemoteNotFound(t *testing.T) {
 	}
 
 	_, err = client.Delete(
-		context.Background(),
+		testMutationContext(),
 		"missing",
 	)
 

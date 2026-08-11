@@ -82,6 +82,95 @@ func TestVerifyAuthenticatedSession(t *testing.T) {
 	}
 }
 
+func TestVerifySessionReturnsAuthenticatedName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(
+				`{"name":"node","authenticated":true}`,
+			))
+		},
+	))
+	defer server.Close()
+
+	verifier := testVerifier(server.URL)
+
+	session, err := verifier.VerifySession(
+		context.Background(),
+		"test-value",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !session.Authenticated {
+		t.Fatal("VerifySession() authenticated = false; want true")
+	}
+
+	if session.Name != "node" {
+		t.Fatalf(
+			"VerifySession() name = %q; want node",
+			session.Name,
+		)
+	}
+}
+
+func TestVerifySessionRejectsAuthenticatedResponseWithoutName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(
+				`{"authenticated":true}`,
+			))
+		},
+	))
+	defer server.Close()
+
+	verifier := testVerifier(server.URL)
+
+	_, err := verifier.VerifySession(
+		context.Background(),
+		"test-value",
+	)
+
+	if !errors.Is(err, ErrInvalidResponse) {
+		t.Fatalf(
+			"error = %v; want ErrInvalidResponse",
+			err,
+		)
+	}
+}
+
+func TestVerifySessionDoesNotExposeUnauthenticatedName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(
+				`{"name":"untrusted","authenticated":false}`,
+			))
+		},
+	))
+	defer server.Close()
+
+	verifier := testVerifier(server.URL)
+
+	session, err := verifier.VerifySession(
+		context.Background(),
+		"test-value",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if session.Authenticated {
+		t.Fatal("VerifySession() authenticated = true; want false")
+	}
+
+	if session.Name != "" {
+		t.Fatalf(
+			"VerifySession() exposed unauthenticated name %q",
+			session.Name,
+		)
+	}
+}
+
 func TestVerifyUnauthenticatedSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {

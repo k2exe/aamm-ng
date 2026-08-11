@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
+	"unicode"
 )
 
 const (
 	ProtocolVersion = 1
 	MaxRequestBytes = 16 * 1024
+	MaxActorBytes   = 128
 )
 
 type Operation string
@@ -36,6 +39,7 @@ type Request struct {
 	Operation Operation `json:"operation"`
 	Target    string    `json:"target,omitempty"`
 	Message   string    `json:"message,omitempty"`
+	Actor     string    `json:"actor,omitempty"`
 }
 
 type Error struct {
@@ -103,28 +107,47 @@ func validateRequest(request Request) error {
 
 	switch request.Operation {
 	case OperationList:
-		if request.Target != "" || request.Message != "" {
+		if request.Target != "" ||
+			request.Message != "" ||
+			request.Actor != "" {
 			return fmt.Errorf(
-				"%w: list accepts no target or message",
+				"%w: list accepts no target, message, or actor",
 				ErrInvalidRequest,
 			)
 		}
 
-	case OperationRead, OperationDelete:
+	case OperationRead:
 		if request.Target == "" {
 			return fmt.Errorf(
-				"%w: %s requires target",
+				"%w: read requires target",
 				ErrInvalidRequest,
-				request.Operation,
+			)
+		}
+
+		if request.Message != "" || request.Actor != "" {
+			return fmt.Errorf(
+				"%w: read accepts no message or actor",
+				ErrInvalidRequest,
+			)
+		}
+
+	case OperationDelete:
+		if request.Target == "" {
+			return fmt.Errorf(
+				"%w: delete requires target",
+				ErrInvalidRequest,
 			)
 		}
 
 		if request.Message != "" {
 			return fmt.Errorf(
-				"%w: %s accepts no message",
+				"%w: delete accepts no message",
 				ErrInvalidRequest,
-				request.Operation,
 			)
+		}
+
+		if err := validateActor(request.Actor); err != nil {
+			return err
 		}
 
 	case OperationCreate, OperationWrite, OperationConvert:
@@ -144,12 +167,52 @@ func validateRequest(request Request) error {
 			)
 		}
 
+		if err := validateActor(request.Actor); err != nil {
+			return err
+		}
+
 	default:
 		return fmt.Errorf(
 			"%w: %q",
 			ErrUnknownOperation,
 			request.Operation,
 		)
+	}
+
+	return nil
+}
+
+func validateActor(actor string) error {
+	if actor == "" {
+		return fmt.Errorf(
+			"%w: mutating operation requires authenticated actor",
+			ErrInvalidRequest,
+		)
+	}
+
+	if len(actor) > MaxActorBytes {
+		return fmt.Errorf(
+			"%w: actor exceeds %d bytes",
+			ErrInvalidRequest,
+			MaxActorBytes,
+		)
+	}
+
+	if strings.TrimSpace(actor) != actor {
+		return fmt.Errorf(
+			"%w: actor contains surrounding whitespace",
+			ErrInvalidRequest,
+		)
+	}
+
+	for _, value := range actor {
+		if unicode.IsControl(value) ||
+			unicode.In(value, unicode.Cf) {
+			return fmt.Errorf(
+				"%w: actor contains unsafe characters",
+				ErrInvalidRequest,
+			)
+		}
 	}
 
 	return nil

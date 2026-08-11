@@ -24,6 +24,11 @@ var (
 	ErrInvalidResponse = errors.New("invalid AREDN authentication response")
 )
 
+type Session struct {
+	Authenticated bool
+	Name          string
+}
+
 type Verifier struct {
 	endpoint string
 	client   *http.Client
@@ -59,12 +64,24 @@ func (v *Verifier) Verify(
 	ctx context.Context,
 	authV1 string,
 ) (bool, error) {
+	session, err := v.VerifySession(ctx, authV1)
+	if err != nil {
+		return false, err
+	}
+
+	return session.Authenticated, nil
+}
+
+func (v *Verifier) VerifySession(
+	ctx context.Context,
+	authV1 string,
+) (Session, error) {
 	if authV1 == "" {
-		return false, nil
+		return Session{}, nil
 	}
 
 	if strings.ContainsAny(authV1, "\r\n;") {
-		return false, nil
+		return Session{}, nil
 	}
 
 	request, err := http.NewRequestWithContext(
@@ -74,19 +91,25 @@ func (v *Verifier) Verify(
 		nil,
 	)
 	if err != nil {
-		return false, fmt.Errorf("%w: create request", ErrUnavailable)
+		return Session{}, fmt.Errorf(
+			"%w: create request",
+			ErrUnavailable,
+		)
 	}
 
 	request.Header.Set("Cookie", "authV1="+authV1)
 
 	response, err := v.client.Do(request)
 	if err != nil {
-		return false, fmt.Errorf("%w: request failed", ErrUnavailable)
+		return Session{}, fmt.Errorf(
+			"%w: request failed",
+			ErrUnavailable,
+		)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return false, fmt.Errorf(
+		return Session{}, fmt.Errorf(
 			"%w: unexpected HTTP status %d",
 			ErrInvalidResponse,
 			response.StatusCode,
@@ -100,11 +123,14 @@ func (v *Verifier) Verify(
 		),
 	)
 	if err != nil {
-		return false, fmt.Errorf("%w: read response", ErrUnavailable)
+		return Session{}, fmt.Errorf(
+			"%w: read response",
+			ErrUnavailable,
+		)
 	}
 
 	if len(body) > maxResponseBytes {
-		return false, fmt.Errorf(
+		return Session{}, fmt.Errorf(
 			"%w: response exceeds %d bytes",
 			ErrInvalidResponse,
 			maxResponseBytes,
@@ -112,22 +138,37 @@ func (v *Verifier) Verify(
 	}
 
 	var result struct {
-		Authenticated *bool `json:"authenticated"`
+		Name          string `json:"name"`
+		Authenticated *bool  `json:"authenticated"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return false, fmt.Errorf(
+		return Session{}, fmt.Errorf(
 			"%w: malformed JSON",
 			ErrInvalidResponse,
 		)
 	}
 
 	if result.Authenticated == nil {
-		return false, fmt.Errorf(
+		return Session{}, fmt.Errorf(
 			"%w: authenticated field missing",
 			ErrInvalidResponse,
 		)
 	}
 
-	return *result.Authenticated, nil
+	if !*result.Authenticated {
+		return Session{}, nil
+	}
+
+	if strings.TrimSpace(result.Name) == "" {
+		return Session{}, fmt.Errorf(
+			"%w: authenticated name missing",
+			ErrInvalidResponse,
+		)
+	}
+
+	return Session{
+		Authenticated: true,
+		Name:          result.Name,
+	}, nil
 }

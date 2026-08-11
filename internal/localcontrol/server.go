@@ -35,6 +35,22 @@ func Serve(
 	store Store,
 	ready chan<- struct{},
 ) error {
+	return serveWithAuditWriter(
+		ctx,
+		socketPath,
+		store,
+		ready,
+		os.Stdout,
+	)
+}
+
+func serveWithAuditWriter(
+	ctx context.Context,
+	socketPath string,
+	store Store,
+	ready chan<- struct{},
+	auditWriter io.Writer,
+) error {
 	runtimeGID, err := validateRuntimeDir(socketPath)
 	if err != nil {
 		return err
@@ -91,7 +107,11 @@ func Serve(
 			return fmt.Errorf("accept control connection: %w", err)
 		}
 
-		handleConnection(connection, store)
+		handleConnection(
+			connection,
+			store,
+			auditWriter,
+		)
 	}
 }
 
@@ -162,6 +182,7 @@ func prepareSocketPath(socketPath string) error {
 func handleConnection(
 	connection *net.UnixConn,
 	store Store,
+	auditWriter io.Writer,
 ) {
 	defer connection.Close()
 
@@ -183,6 +204,13 @@ func handleConnection(
 			response = responseForError(decodeErr)
 		} else {
 			response = Dispatch(store, request)
+
+			writeMutationAudit(
+				auditWriter,
+				time.Now().UTC(),
+				request,
+				response,
+			)
 		}
 	}
 
