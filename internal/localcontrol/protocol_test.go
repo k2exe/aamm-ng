@@ -283,3 +283,91 @@ func TestResponseConstructors(t *testing.T) {
 		t.Fatalf("Failure() = %#v", failure)
 	}
 }
+
+func TestValidateMutationAuditAcceptsCompleteAttribution(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode:   "TEST-NODE-A",
+			AuthRole:   "admin",
+			SourceIP:   "192.0.2.44",
+			SourceNode: "TEST-NODE-B",
+			SourceHost: "test-workstation",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("validateMutationAudit() error = %v", err)
+	}
+}
+
+func TestValidateMutationAuditAcceptsRequiredFieldsOnly(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode: "TEST-NODE-A",
+			AuthRole: "admin",
+			SourceIP: "192.0.2.44",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("validateMutationAudit() error = %v", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsInvalidRole(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode: "TEST-NODE-A",
+			AuthRole: "operator",
+			SourceIP: "192.0.2.44",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsNonCanonicalSourceAddress(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode: "TEST-NODE-A",
+			AuthRole: "admin",
+			SourceIP: "::ffff:192.0.2.44",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsHostWithoutNode(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode:   "TEST-NODE-A",
+			AuthRole:   "admin",
+			SourceIP:   "192.0.2.44",
+			SourceHost: "test-workstation",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsUnsafeNodeName(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode:   "TEST-NODE-A",
+			AuthRole:   "admin",
+			SourceIP:   "192.0.2.44",
+			SourceNode: "TEST-NODE-B\nforged",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}

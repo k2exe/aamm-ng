@@ -46,32 +46,24 @@ func (client *Client) sourceAttribution(
 	return attribution
 }
 
-type mutationAuditContext struct {
-	AuthNode   string
-	AuthRole   string
-	SourceIP   string
-	SourceNode string
-	SourceHost string
-}
-
 func (client *Client) mutationAuditFromContext(
 	ctx context.Context,
-) (mutationAuditContext, error) {
+) (MutationAudit, error) {
 	identity, ok := auditidentity.FromContext(ctx)
 	if !ok {
-		return mutationAuditContext{}, fmt.Errorf(
+		return MutationAudit{}, fmt.Errorf(
 			"%w: authenticated identity required",
 			ErrInvalidRequest,
 		)
 	}
 
 	if err := validateActor(identity.Name); err != nil {
-		return mutationAuditContext{}, err
+		return MutationAudit{}, err
 	}
 
 	sourceAddress, err := netip.ParseAddr(identity.SourceIP)
 	if err != nil {
-		return mutationAuditContext{}, fmt.Errorf(
+		return MutationAudit{}, fmt.Errorf(
 			"%w: trusted source address required",
 			ErrInvalidRequest,
 		)
@@ -84,11 +76,17 @@ func (client *Client) mutationAuditFromContext(
 		sourceIP,
 	)
 
-	return mutationAuditContext{
+	audit := MutationAudit{
 		AuthNode:   identity.Name,
 		AuthRole:   "admin",
 		SourceIP:   sourceIP,
 		SourceNode: attribution.SourceNode,
 		SourceHost: attribution.SourceHost,
-	}, nil
+	}
+
+	if err := validateMutationAudit(audit); err != nil {
+		return MutationAudit{}, err
+	}
+
+	return audit, nil
 }

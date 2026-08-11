@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"strings"
 	"unicode"
 )
@@ -33,6 +34,14 @@ var (
 	ErrUnsupportedVersion = errors.New("unsupported control protocol version")
 	ErrUnknownOperation   = errors.New("unknown control operation")
 )
+
+type MutationAudit struct {
+	AuthNode   string `json:"auth_node,omitempty"`
+	AuthRole   string `json:"auth_role,omitempty"`
+	SourceIP   string `json:"source_ip,omitempty"`
+	SourceNode string `json:"source_node,omitempty"`
+	SourceHost string `json:"source_host,omitempty"`
+}
 
 type Request struct {
 	Version   int       `json:"version"`
@@ -177,6 +186,115 @@ func validateRequest(request Request) error {
 			ErrUnknownOperation,
 			request.Operation,
 		)
+	}
+
+	return nil
+}
+
+func validateMutationAudit(audit MutationAudit) error {
+	if err := validateAuditText(
+		"auth node",
+		audit.AuthNode,
+		128,
+		true,
+	); err != nil {
+		return err
+	}
+
+	if audit.AuthRole != "admin" {
+		return fmt.Errorf(
+			"%w: invalid authenticated role",
+			ErrInvalidRequest,
+		)
+	}
+
+	address, err := netip.ParseAddr(audit.SourceIP)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: invalid source address",
+			ErrInvalidRequest,
+		)
+	}
+
+	if address.Unmap().String() != audit.SourceIP {
+		return fmt.Errorf(
+			"%w: source address is not canonical",
+			ErrInvalidRequest,
+		)
+	}
+
+	if err := validateAuditText(
+		"source node",
+		audit.SourceNode,
+		255,
+		false,
+	); err != nil {
+		return err
+	}
+
+	if err := validateAuditText(
+		"source host",
+		audit.SourceHost,
+		255,
+		false,
+	); err != nil {
+		return err
+	}
+
+	if audit.SourceHost != "" && audit.SourceNode == "" {
+		return fmt.Errorf(
+			"%w: source host requires source node",
+			ErrInvalidRequest,
+		)
+	}
+
+	return nil
+}
+
+func validateAuditText(
+	field string,
+	value string,
+	maxBytes int,
+	required bool,
+) error {
+	if value == "" {
+		if required {
+			return fmt.Errorf(
+				"%w: %s required",
+				ErrInvalidRequest,
+				field,
+			)
+		}
+
+		return nil
+	}
+
+	if len(value) > maxBytes {
+		return fmt.Errorf(
+			"%w: %s exceeds %d bytes",
+			ErrInvalidRequest,
+			field,
+			maxBytes,
+		)
+	}
+
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf(
+			"%w: %s contains surrounding whitespace",
+			ErrInvalidRequest,
+			field,
+		)
+	}
+
+	for _, value := range value {
+		if unicode.IsControl(value) ||
+			unicode.In(value, unicode.Cf) {
+			return fmt.Errorf(
+				"%w: %s contains unsafe characters",
+				ErrInvalidRequest,
+				field,
+			)
+		}
 	}
 
 	return nil

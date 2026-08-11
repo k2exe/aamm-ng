@@ -202,7 +202,7 @@ func TestMutationAuditFromContextBuildsAttribution(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := mutationAuditContext{
+	want := MutationAudit{
 		AuthNode:   "TEST-NODE-A",
 		AuthRole:   "admin",
 		SourceIP:   "192.0.2.44",
@@ -245,7 +245,7 @@ func TestMutationAuditFromContextKeepsRequiredFieldsWhenLookupFails(
 		t.Fatal(err)
 	}
 
-	want := mutationAuditContext{
+	want := MutationAudit{
 		AuthNode: "TEST-NODE-A",
 		AuthRole: "admin",
 		SourceIP: "192.0.2.44",
