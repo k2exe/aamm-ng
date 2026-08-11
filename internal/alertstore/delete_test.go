@@ -29,14 +29,6 @@ func TestDeleteBacksUpAndRemovesAlerts(t *testing.T) {
 			target:  "legacy",
 			content: []byte(`<strong>Legacy alert</strong>`),
 		},
-		{
-			name:   "oversized",
-			target: "weather",
-			content: bytes.Repeat(
-				[]byte("x"),
-				MaxLegacyBytes+1,
-			),
-		},
 	}
 
 	for _, test := range tests {
@@ -117,6 +109,55 @@ func TestDeleteBacksUpAndRemovesAlerts(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestDeleteRejectsOversizedWithoutBackupOrMutation(t *testing.T) {
+	alertRoot := t.TempDir()
+	backupRoot := newBackupRoot(t)
+	target := mustTarget(t, "weather")
+	oversized := bytes.Repeat([]byte("x"), MaxLegacyBytes+1)
+
+	writeAlert(t, alertRoot, target.Filename(), oversized)
+
+	store, err := Open(Config{
+		AlertRoot:  alertRoot,
+		BackupRoot: backupRoot,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	_, err = store.Delete(target)
+	if !errors.Is(err, ErrOversizedConflict) {
+		t.Fatalf(
+			"Delete() error = %v; want ErrOversizedConflict",
+			err,
+		)
+	}
+
+	backups, err := os.ReadDir(backupRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(backups) != 0 {
+		t.Fatalf(
+			"backup directory contains %d files; want none",
+			len(backups),
+		)
+	}
+
+	after, err := os.ReadFile(
+		filepath.Join(alertRoot, target.Filename()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(after, oversized) {
+		t.Fatal("oversized alert changed after rejected deletion")
 	}
 }
 

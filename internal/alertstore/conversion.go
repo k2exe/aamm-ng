@@ -8,11 +8,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/k2exe/aamm-ng/internal/alertmessage"
 	"github.com/k2exe/aamm-ng/internal/alerttarget"
 )
+
+const maxBackupFiles = 16
 
 type ConversionResult struct {
 	BackupName string
@@ -131,6 +135,14 @@ func backupAlert(
 		)
 	}
 
+	if openedInfo.Size() > MaxLegacyBytes {
+		return sourceSnapshot{}, "", fmt.Errorf(
+			"%w: %s",
+			ErrOversizedConflict,
+			target.String(),
+		)
+	}
+
 	backup, temporaryName, err := createTemporaryBackup(backupRoot)
 	if err != nil {
 		return sourceSnapshot{}, "", fmt.Errorf(
@@ -160,13 +172,21 @@ func backupAlert(
 
 	copied, err := io.Copy(
 		io.MultiWriter(backup, hasher, &capture),
-		source,
+		io.LimitReader(source, MaxLegacyBytes+1),
 	)
 	if err != nil {
 		return sourceSnapshot{}, "", fmt.Errorf(
 			"copy backup for alert %q: %w",
 			target.String(),
 			err,
+		)
+	}
+
+	if copied > MaxLegacyBytes {
+		return sourceSnapshot{}, "", fmt.Errorf(
+			"%w: %s",
+			ErrOversizedConflict,
+			target.String(),
 		)
 	}
 
@@ -190,7 +210,7 @@ func backupAlert(
 		)
 	}
 
-	if rejectManaged && copied <= MaxLegacyBytes {
+	if rejectManaged {
 		_, managed := alertmessage.ParseManagedHTML(string(capture.data))
 		if managed {
 			return sourceSnapshot{}, "", fmt.Errorf(
@@ -251,6 +271,14 @@ func backupAlert(
 		return sourceSnapshot{}, "", fmt.Errorf(
 			"sync backup directory for alert %q: %w",
 			target.String(),
+			err,
+		)
+	}
+
+	if err := pruneBackups(backupRoot, backupName); err != nil {
+		return sourceSnapshot{}, "", fmt.Errorf(
+			"prune backups after creating %q: %w",
+			backupName,
 			err,
 		)
 	}
@@ -316,7 +344,10 @@ func verifySourceUnchanged(
 
 	hasher := sha256.New()
 
-	copied, copyErr := io.Copy(hasher, source)
+	copied, copyErr := io.Copy(
+		hasher,
+		io.LimitReader(source, MaxLegacyBytes+1),
+	)
 	afterInfo, statErr := source.Stat()
 	closeErr := source.Close()
 
@@ -341,6 +372,95 @@ func verifySourceUnchanged(
 
 	if digest != snapshot.digest {
 		return fmt.Errorf("%w: %s", ErrSourceChanged, name)
+	}
+
+	return nil
+}
+
+func pruneBackups(
+	root *os.Root,
+	protectedName string,
+) error {
+	directory, err := root.Open(".")
+	if err != nil {
+		return fmt.Errorf("open backup directory: %w", err)
+	}
+
+	entries, readErr := directory.ReadDir(-1)
+	closeErr := directory.Close()
+
+	if err := errors.Join(readErr, closeErr); err != nil {
+		return fmt.Errorf("read backup directory: %w", err)
+	}
+
+	names := make([]string, 0, len(entries))
+
+	for _, entry := range entries {
+		name := entry.Name()
+
+		if !strings.HasSuffix(name, ".txt") {
+			continue
+		}
+
+		info, err := root.Lstat(name)
+		if err != nil {
+			return fmt.Errorf(
+				"inspect backup %q during retention: %w",
+				name,
+				err,
+			)
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 ||
+			!info.Mode().IsRegular() {
+			return fmt.Errorf(
+				"unsafe backup entry during retention: %s",
+				name,
+			)
+		}
+
+		names = append(names, name)
+	}
+
+	if len(names) <= maxBackupFiles {
+		return nil
+	}
+
+	sort.Strings(names)
+
+	removeCount := len(names) - maxBackupFiles
+
+	for _, name := range names {
+		if removeCount == 0 {
+			break
+		}
+
+		if name == protectedName {
+			continue
+		}
+
+		if err := root.Remove(name); err != nil {
+			return fmt.Errorf(
+				"remove expired backup %q: %w",
+				name,
+				err,
+			)
+		}
+
+		removeCount--
+	}
+
+	if removeCount != 0 {
+		return errors.New(
+			"backup retention cannot satisfy limit without removing protected backup",
+		)
+	}
+
+	if err := syncDirectory(root); err != nil {
+		return fmt.Errorf(
+			"sync backup directory after retention: %w",
+			err,
+		)
 	}
 
 	return nil

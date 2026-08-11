@@ -3,6 +3,7 @@ package alertstore
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,7 +109,7 @@ func TestConvertLegacyBacksUpAndReplacesAlert(t *testing.T) {
 	}
 }
 
-func TestConvertOversizedBacksUpAndReplacesAlert(t *testing.T) {
+func TestConvertRejectsOversizedWithoutBackupOrMutation(t *testing.T) {
 	alertRoot := t.TempDir()
 	backupRoot := newBackupRoot(t)
 	target := mustTarget(t, "weather")
@@ -126,31 +127,105 @@ func TestConvertOversizedBacksUpAndReplacesAlert(t *testing.T) {
 	}
 	defer store.Close()
 
-	result, err := store.ConvertLegacy(target, message)
+	_, err = store.ConvertLegacy(target, message)
+	if !errors.Is(err, ErrOversizedConflict) {
+		t.Fatalf(
+			"ConvertLegacy() error = %v; want ErrOversizedConflict",
+			err,
+		)
+	}
+
+	backups, err := os.ReadDir(backupRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	backup, err := os.ReadFile(
-		filepath.Join(backupRoot, result.BackupName),
-	)
-	if err != nil {
-		t.Fatal(err)
+	if len(backups) != 0 {
+		t.Fatalf(
+			"backup directory contains %d files; want none",
+			len(backups),
+		)
 	}
 
-	if !bytes.Equal(backup, oversized) {
-		t.Fatal("oversized backup does not match original alert")
-	}
-
-	active, err := os.ReadFile(
+	after, err := os.ReadFile(
 		filepath.Join(alertRoot, target.Filename()),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if string(active) != message.EscapedHTML() {
-		t.Fatal("oversized alert was not replaced with managed content")
+	if !bytes.Equal(after, oversized) {
+		t.Fatal("oversized alert changed after rejected conversion")
+	}
+}
+
+func TestBackupRetentionKeepsJustCreatedBackup(t *testing.T) {
+	const retentionLimit = 16
+
+	alertRoot := t.TempDir()
+	backupRoot := newBackupRoot(t)
+
+	// Deliberately give all existing backups timestamps that sort
+	// later than the backup this test will create. Retention must
+	// protect the just-created rollback copy rather than blindly
+	// deleting the lexicographically oldest filename.
+	for i := 0; i < retentionLimit; i++ {
+		name := fmt.Sprintf(
+			"99991231T235959.%09dZ-seed-%016x.txt",
+			i,
+			i+1,
+		)
+
+		if err := os.WriteFile(
+			filepath.Join(backupRoot, name),
+			[]byte("seed backup"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	target := mustTarget(t, "all")
+	legacy := []byte("<strong>Legacy alert</strong>")
+	message := mustMessage(t, "Managed replacement")
+
+	writeAlert(t, alertRoot, target.Filename(), legacy)
+
+	store, err := Open(Config{
+		AlertRoot:  alertRoot,
+		BackupRoot: backupRoot,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	result, err := store.ConvertLegacy(target, message)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	backups, err := os.ReadDir(backupRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(backups) != retentionLimit {
+		t.Fatalf(
+			"backup count = %d; want %d",
+			len(backups),
+			retentionLimit,
+		)
+	}
+
+	if _, err := os.Stat(
+		filepath.Join(backupRoot, result.BackupName),
+	); err != nil {
+		t.Fatalf(
+			"just-created backup %q was not retained: %v",
+			result.BackupName,
+			err,
+		)
 	}
 }
 
