@@ -19,12 +19,18 @@ func (client *Client) Delete(
 		)
 	}
 
+	actor, err := actorFromContext(ctx)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+
 	response, err := client.Call(
 		ctx,
 		Request{
 			Version:   ProtocolVersion,
 			Operation: OperationDelete,
 			Target:    parsedTarget.String(),
+			Actor:     actor,
 		},
 	)
 	if err != nil {

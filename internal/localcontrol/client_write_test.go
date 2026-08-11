@@ -2,7 +2,6 @@ package localcontrol
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -81,7 +80,7 @@ func TestClientWriteSendsCanonicalRequest(t *testing.T) {
 	}
 
 	result, err := client.Write(
-		context.Background(),
+		testMutationContext(),
 		"ALL",
 		"Line one\r\nLine two",
 	)
@@ -120,7 +119,7 @@ func TestClientWriteRejectsInvalidTargetBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := client.Write(
-		context.Background(),
+		testMutationContext(),
 		"../etc/passwd",
 		"Net open",
 	)
@@ -151,7 +150,7 @@ func TestClientWriteRejectsInvalidMessageBeforeConnecting(t *testing.T) {
 	for name, message := range tests {
 		t.Run(name, func(t *testing.T) {
 			_, err := client.Write(
-				context.Background(),
+				testMutationContext(),
 				"all",
 				message,
 			)
@@ -216,7 +215,7 @@ func TestClientWriteReturnsRemoteConflict(t *testing.T) {
 	}
 
 	_, err = client.Write(
-		context.Background(),
+		testMutationContext(),
 		"all",
 		"Replacement",
 	)

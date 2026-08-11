@@ -2,7 +2,6 @@ package localcontrol
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -79,7 +78,7 @@ func TestClientCreateSendsCanonicalRequest(t *testing.T) {
 	}
 
 	result, err := client.Create(
-		context.Background(),
+		testMutationContext(),
 		"ALL",
 		"Line one\r\nLine two",
 	)
@@ -115,7 +114,7 @@ func TestClientCreateRejectsInvalidTargetBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := client.Create(
-		context.Background(),
+		testMutationContext(),
 		"../etc/passwd",
 		"Net open",
 	)

@@ -29,6 +29,11 @@ func (client *Client) Create(
 		)
 	}
 
+	actor, err := actorFromContext(ctx)
+	if err != nil {
+		return CreateResult{}, err
+	}
+
 	response, err := client.Call(
 		ctx,
 		Request{
@@ -36,6 +41,7 @@ func (client *Client) Create(
 			Operation: OperationCreate,
 			Target:    parsedTarget.String(),
 			Message:   parsedMessage.String(),
+			Actor:     actor,
 		},
 	)
 	if err != nil {

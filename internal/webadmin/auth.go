@@ -3,12 +3,14 @@ package webadmin
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/arednauth"
+	"github.com/k2exe/aamm-ng/internal/auditidentity"
 )
 
 type SessionVerifier interface {
-	Verify(context.Context, string) (bool, error)
+	VerifySession(context.Context, string) (arednauth.Session, error)
 }
 
 func RequireAdmin(
@@ -26,7 +28,7 @@ func RequireAdmin(
 			return
 		}
 
-		authenticated, err := verifier.Verify(
+		session, err := verifier.VerifySession(
 			request.Context(),
 			arednauth.AuthV1FromRequest(request),
 		)
@@ -35,12 +37,27 @@ func RequireAdmin(
 			return
 		}
 
-		if !authenticated {
+		if !session.Authenticated {
 			unauthorized(writer)
 			return
 		}
 
-		next.ServeHTTP(writer, request)
+		if strings.TrimSpace(session.Name) == "" {
+			serviceUnavailable(writer)
+			return
+		}
+
+		ctx := auditidentity.WithIdentity(
+			request.Context(),
+			auditidentity.Identity{
+				Name: session.Name,
+			},
+		)
+
+		next.ServeHTTP(
+			writer,
+			request.WithContext(ctx),
+		)
 	})
 }
 

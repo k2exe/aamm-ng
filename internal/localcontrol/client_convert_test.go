@@ -2,7 +2,6 @@ package localcontrol
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -83,7 +82,7 @@ func TestClientConvertSendsCanonicalRequest(t *testing.T) {
 	}
 
 	result, err := client.Convert(
-		context.Background(),
+		testMutationContext(),
 		"LEGACY",
 		"Line one\r\nLine two",
 	)
@@ -126,7 +125,7 @@ func TestClientConvertRejectsInvalidTargetBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := client.Convert(
-		context.Background(),
+		testMutationContext(),
 		"../legacy",
 		"Converted message",
 	)
@@ -148,7 +147,7 @@ func TestClientConvertRejectsInvalidMessageBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := client.Convert(
-		context.Background(),
+		testMutationContext(),
 		"legacy",
 		"",
 	)
@@ -212,7 +211,7 @@ func TestClientConvertReturnsRemoteConflict(t *testing.T) {
 	}
 
 	_, err = client.Convert(
-		context.Background(),
+		testMutationContext(),
 		"legacy",
 		"Converted message",
 	)

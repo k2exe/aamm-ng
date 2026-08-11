@@ -7,7 +7,7 @@ USE_PROCD=1
 
 PROG=/usr/sbin/aamm-ng
 ALERT_ROOT=/www/aam
-BACKUP_ROOT=/var/lib/aamm-ng/backups
+BACKUP_ROOT=/etc/aamm-ng/backups
 RUNTIME_DIR=/run/aamm-ng
 
 prepare_directories() {

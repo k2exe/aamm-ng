@@ -2,6 +2,7 @@ package localcontrol
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -11,6 +12,7 @@ func TestDecodeRequestAcceptsOperations(t *testing.T) {
 		name      string
 		input     string
 		operation Operation
+		actor     string
 	}{
 		{
 			name:      "list",
@@ -24,22 +26,26 @@ func TestDecodeRequestAcceptsOperations(t *testing.T) {
 		},
 		{
 			name:      "create",
-			input:     `{"version":1,"operation":"create","target":"all","message":"Net open"}`,
+			input:     `{"version":1,"operation":"create","target":"all","message":"Net open","actor":"K2EXE"}`,
+			actor:     "K2EXE",
 			operation: OperationCreate,
 		},
 		{
 			name:      "write",
-			input:     `{"version":1,"operation":"write","target":"all","message":"Net open"}`,
+			input:     `{"version":1,"operation":"write","target":"all","message":"Net open","actor":"K2EXE"}`,
+			actor:     "K2EXE",
 			operation: OperationWrite,
 		},
 		{
 			name:      "convert",
-			input:     `{"version":1,"operation":"convert","target":"all","message":"Replacement"}`,
+			input:     `{"version":1,"operation":"convert","target":"all","message":"Replacement","actor":"K2EXE"}`,
+			actor:     "K2EXE",
 			operation: OperationConvert,
 		},
 		{
 			name:      "delete",
-			input:     `{"version":1,"operation":"delete","target":"all"}`,
+			input:     `{"version":1,"operation":"delete","target":"all","actor":"K2EXE"}`,
+			actor:     "K2EXE",
 			operation: OperationDelete,
 		},
 	}
@@ -56,6 +62,62 @@ func TestDecodeRequestAcceptsOperations(t *testing.T) {
 					"Operation = %q; want %q",
 					request.Operation,
 					test.operation,
+				)
+			}
+
+			if request.Actor != test.actor {
+				t.Fatalf(
+					"Actor = %q; want %q",
+					request.Actor,
+					test.actor,
+				)
+			}
+		})
+	}
+}
+
+func TestDecodeRequestRequiresActorForMutations(t *testing.T) {
+	tests := []string{
+		`{"version":1,"operation":"create","target":"all","message":"Net open"}`,
+		`{"version":1,"operation":"write","target":"all","message":"Net open"}`,
+		`{"version":1,"operation":"convert","target":"all","message":"Replacement"}`,
+		`{"version":1,"operation":"delete","target":"all"}`,
+	}
+
+	for _, input := range tests {
+		t.Run(input, func(t *testing.T) {
+			_, err := DecodeRequest([]byte(input))
+			if !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf(
+					"DecodeRequest() error = %v; want ErrInvalidRequest",
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestDecodeRequestRejectsUnsafeActor(t *testing.T) {
+	tests := []string{
+		"",
+		" K2EXE",
+		"K2EXE ",
+		"K2EXE\nforged",
+		"K2EXE\u202Eevil",
+		strings.Repeat("x", MaxActorBytes+1),
+	}
+
+	for _, actor := range tests {
+		t.Run(actor, func(t *testing.T) {
+			input := `{"version":1,"operation":"delete","target":"all","actor":` +
+				strconv.Quote(actor) +
+				`}`
+
+			_, err := DecodeRequest([]byte(input))
+			if !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf(
+					"DecodeRequest() error = %v; want ErrInvalidRequest",
+					err,
 				)
 			}
 		})
@@ -173,6 +235,36 @@ func TestDecodeRequestRequiresWriteMessage(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestDecodeRequestReturnsParsedMutationOnValidationError(
+	t *testing.T,
+) {
+	request, err := DecodeRequest([]byte(
+		`{"version":1,"operation":"write","target":"all","message":"test"}`,
+	))
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf(
+			"DecodeRequest() error = %v; want ErrInvalidRequest",
+			err,
+		)
+	}
+
+	if request.Operation != OperationWrite {
+		t.Fatalf(
+			"Operation = %q; want %q",
+			request.Operation,
+			OperationWrite,
+		)
+	}
+
+	if request.Target != "all" {
+		t.Fatalf(
+			"Target = %q; want all",
+			request.Target,
+		)
 	}
 }
 
