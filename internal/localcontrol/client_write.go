@@ -29,7 +29,7 @@ func (client *Client) Write(
 		)
 	}
 
-	actor, err := actorFromContext(ctx)
+	audit, err := client.mutationAuditFromContext(ctx)
 	if err != nil {
 		return WriteResult{}, err
 	}
@@ -41,7 +41,7 @@ func (client *Client) Write(
 			Operation: OperationWrite,
 			Target:    parsedTarget.String(),
 			Message:   parsedMessage.String(),
-			Actor:     actor,
+			Audit:     &audit,
 		},
 	)
 	if err != nil {

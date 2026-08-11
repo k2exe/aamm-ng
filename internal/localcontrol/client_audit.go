@@ -9,24 +9,6 @@ import (
 	"github.com/k2exe/aamm-ng/internal/auditidentity"
 )
 
-func actorFromContext(
-	ctx context.Context,
-) (string, error) {
-	identity, ok := auditidentity.FromContext(ctx)
-	if !ok {
-		return "", fmt.Errorf(
-			"%w: authenticated actor required",
-			ErrInvalidRequest,
-		)
-	}
-
-	if err := validateActor(identity.Name); err != nil {
-		return "", err
-	}
-
-	return identity.Name, nil
-}
-
 func (client *Client) sourceAttribution(
 	ctx context.Context,
 	sourceIP string,
@@ -55,10 +37,6 @@ func (client *Client) mutationAuditFromContext(
 			"%w: authenticated identity required",
 			ErrInvalidRequest,
 		)
-	}
-
-	if err := validateActor(identity.Name); err != nil {
-		return MutationAudit{}, err
 	}
 
 	sourceAddress, err := netip.ParseAddr(identity.SourceIP)

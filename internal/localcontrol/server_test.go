@@ -39,7 +39,7 @@ func TestServeListRoundTrip(t *testing.T) {
 	defer connection.Close()
 
 	_, err = connection.Write(
-		[]byte(`{"version":1,"operation":"list"}` + "\n"),
+		[]byte(`{"version":2,"operation":"list"}` + "\n"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -293,7 +293,7 @@ func TestServeRejectsRequestWithoutNewline(t *testing.T) {
 	}
 
 	_, err = connection.Write(
-		[]byte(`{"version":1,"operation":"list"}`),
+		[]byte(`{"version":2,"operation":"list"}`),
 	)
 	if err != nil {
 		t.Fatal(err)

@@ -45,6 +45,14 @@ func TestClientConvertSendsCanonicalRequest(t *testing.T) {
 			return
 		}
 
+		if err := validateTestRequestAudit(
+			request,
+			testRequiredMutationAudit(),
+		); err != nil {
+			serverErr <- err
+			return
+		}
+
 		if request.Operation != OperationConvert {
 			serverErr <- errors.New(
 				"unexpected operation",
@@ -68,7 +76,7 @@ func TestClientConvertSendsCanonicalRequest(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":true,"result":`+
+			`{"version":2,"ok":true,"result":`+
 				`{"target":"legacy","kind":"managed",`+
 				`"backup_name":"legacy.txt.20260807T010203Z.bak"}}`+
 				"\n",
@@ -197,7 +205,7 @@ func TestClientConvertReturnsRemoteConflict(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":false,"error":`+
+			`{"version":2,"ok":false,"error":`+
 				`{"code":"managed_conflict",`+
 				`"message":"alert is already managed"}}`+
 				"\n",

@@ -3,6 +3,7 @@ package localcontrol
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -10,16 +11,71 @@ import (
 	"github.com/k2exe/aamm-ng/internal/auditidentity"
 )
 
+func testMutationAudit() *MutationAudit {
+	return &MutationAudit{
+		AuthNode:   "TEST-NODE-A",
+		AuthRole:   "admin",
+		SourceIP:   "192.0.2.44",
+		SourceNode: "TEST-NODE-B",
+		SourceHost: "test-workstation",
+	}
+}
+
+func testRequiredMutationAudit() MutationAudit {
+	return MutationAudit{
+		AuthNode: "TEST-NODE-A",
+		AuthRole: "admin",
+		SourceIP: "192.0.2.44",
+	}
+}
+
+func testResolvedSource(
+	ctx context.Context,
+	sourceIP string,
+) (arednsource.Attribution, error) {
+	if sourceIP != "192.0.2.44" {
+		return arednsource.Attribution{}, fmt.Errorf(
+			"source IP = %q; want 192.0.2.44",
+			sourceIP,
+		)
+	}
+
+	return arednsource.Attribution{
+		SourceNode: "TEST-NODE-B",
+		SourceHost: "test-workstation",
+	}, nil
+}
+
+func validateTestRequestAudit(
+	request Request,
+	want MutationAudit,
+) error {
+	if request.Audit == nil {
+		return errors.New("mutation request has no audit attribution")
+	}
+
+	if *request.Audit != want {
+		return fmt.Errorf(
+			"audit attribution = %#v; want %#v",
+			*request.Audit,
+			want,
+		)
+	}
+
+	return nil
+}
+
 func testMutationContext() context.Context {
 	return auditidentity.WithIdentity(
 		context.Background(),
 		auditidentity.Identity{
-			Name: "TEST-NODE-A",
+			Name:     "TEST-NODE-A",
+			SourceIP: "192.0.2.44",
 		},
 	)
 }
 
-func TestMutationClientsRequireAuthenticatedActor(t *testing.T) {
+func TestMutationClientsRequireAuthenticatedIdentity(t *testing.T) {
 	client := &Client{
 		socketPath: filepath.Join(
 			t.TempDir(),

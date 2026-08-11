@@ -15,7 +15,7 @@ import (
 func TestClientCallSuccess(t *testing.T) {
 	response, err := callAgainstResponse(
 		t,
-		`{"version":1,"ok":true,"result":{"entries":[],"issues":[]}}`+"\n",
+		`{"version":2,"ok":true,"result":{"entries":[],"issues":[]}}`+"\n",
 	)
 
 	if err != nil {
@@ -45,7 +45,7 @@ func TestClientCallSuccess(t *testing.T) {
 func TestClientReturnsRemoteFailure(t *testing.T) {
 	response, err := callAgainstResponse(
 		t,
-		`{"version":1,"ok":false,"error":{"code":"not_found","message":"not found"}}`+"\n",
+		`{"version":2,"ok":false,"error":{"code":"not_found","message":"not found"}}`+"\n",
 	)
 
 	if err != nil {
@@ -111,7 +111,7 @@ func TestClientRejectsOversizedResponse(t *testing.T) {
 func TestClientRequiresResponseNewline(t *testing.T) {
 	_, err := callAgainstResponse(
 		t,
-		`{"version":1,"ok":true}`,
+		`{"version":2,"ok":true}`,
 	)
 
 	if !errors.Is(err, ErrInvalidResponse) {
@@ -125,13 +125,13 @@ func TestClientRequiresResponseNewline(t *testing.T) {
 func TestClientRejectsMalformedResponses(t *testing.T) {
 	tests := map[string]string{
 		"malformed JSON": "not-json\n",
-		"wrong version":  `{"version":2,"ok":true}` + "\n",
-		"missing error":  `{"version":1,"ok":false}` + "\n",
-		"error on success": `{"version":1,"ok":true,"error":` +
+		"wrong version":  `{"version":1,"ok":true}` + "\n",
+		"missing error":  `{"version":2,"ok":false}` + "\n",
+		"error on success": `{"version":2,"ok":true,"error":` +
 			`{"code":"internal_error","message":"bad"}}` + "\n",
-		"result on failure": `{"version":1,"ok":false,"result":{},` +
+		"result on failure": `{"version":2,"ok":false,"result":{},` +
 			`"error":{"code":"internal_error","message":"bad"}}` + "\n",
-		"multiple values": `{"version":1,"ok":true} {"version":1,"ok":true}` + "\n",
+		"multiple values": `{"version":2,"ok":true} {"version":2,"ok":true}` + "\n",
 	}
 
 	for name, wireResponse := range tests {

@@ -45,6 +45,14 @@ func TestClientWriteSendsCanonicalRequest(t *testing.T) {
 			return
 		}
 
+		if err := validateTestRequestAudit(
+			request,
+			testRequiredMutationAudit(),
+		); err != nil {
+			serverErr <- err
+			return
+		}
+
 		if request.Operation != OperationWrite {
 			serverErr <- errors.New(
 				"unexpected operation",
@@ -68,7 +76,7 @@ func TestClientWriteSendsCanonicalRequest(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":true,"result":`+
+			`{"version":2,"ok":true,"result":`+
 				`{"target":"all","kind":"managed"}}`+"\n",
 		)
 
@@ -202,7 +210,7 @@ func TestClientWriteReturnsRemoteConflict(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":false,"error":`+
+			`{"version":2,"ok":false,"error":`+
 				`{"code":"legacy_conflict",`+
 				`"message":"legacy alert requires conversion"}}`+"\n",
 		)

@@ -12,9 +12,11 @@ import (
 )
 
 const (
-	ProtocolVersion = 1
-	MaxRequestBytes = 16 * 1024
-	MaxActorBytes   = 128
+	ProtocolVersion    = 2
+	MaxRequestBytes    = 16 * 1024
+	MaxAuthNodeBytes   = 128
+	MaxSourceNodeBytes = 255
+	MaxSourceHostBytes = 255
 )
 
 type Operation string
@@ -44,11 +46,11 @@ type MutationAudit struct {
 }
 
 type Request struct {
-	Version   int       `json:"version"`
-	Operation Operation `json:"operation"`
-	Target    string    `json:"target,omitempty"`
-	Message   string    `json:"message,omitempty"`
-	Actor     string    `json:"actor,omitempty"`
+	Version   int            `json:"version"`
+	Operation Operation      `json:"operation"`
+	Target    string         `json:"target,omitempty"`
+	Message   string         `json:"message,omitempty"`
+	Audit     *MutationAudit `json:"audit,omitempty"`
 }
 
 type Error struct {
@@ -118,9 +120,9 @@ func validateRequest(request Request) error {
 	case OperationList:
 		if request.Target != "" ||
 			request.Message != "" ||
-			request.Actor != "" {
+			request.Audit != nil {
 			return fmt.Errorf(
-				"%w: list accepts no target, message, or actor",
+				"%w: list accepts no target, message, or audit attribution",
 				ErrInvalidRequest,
 			)
 		}
@@ -133,9 +135,10 @@ func validateRequest(request Request) error {
 			)
 		}
 
-		if request.Message != "" || request.Actor != "" {
+		if request.Message != "" ||
+			request.Audit != nil {
 			return fmt.Errorf(
-				"%w: read accepts no message or actor",
+				"%w: read accepts no message or audit attribution",
 				ErrInvalidRequest,
 			)
 		}
@@ -155,7 +158,7 @@ func validateRequest(request Request) error {
 			)
 		}
 
-		if err := validateActor(request.Actor); err != nil {
+		if err := validateRequestAudit(request.Audit); err != nil {
 			return err
 		}
 
@@ -176,7 +179,7 @@ func validateRequest(request Request) error {
 			)
 		}
 
-		if err := validateActor(request.Actor); err != nil {
+		if err := validateRequestAudit(request.Audit); err != nil {
 			return err
 		}
 
@@ -191,11 +194,22 @@ func validateRequest(request Request) error {
 	return nil
 }
 
+func validateRequestAudit(audit *MutationAudit) error {
+	if audit == nil {
+		return fmt.Errorf(
+			"%w: mutating operation requires audit attribution",
+			ErrInvalidRequest,
+		)
+	}
+
+	return validateMutationAudit(*audit)
+}
+
 func validateMutationAudit(audit MutationAudit) error {
 	if err := validateAuditText(
 		"auth node",
 		audit.AuthNode,
-		128,
+		MaxAuthNodeBytes,
 		true,
 	); err != nil {
 		return err
@@ -226,7 +240,7 @@ func validateMutationAudit(audit MutationAudit) error {
 	if err := validateAuditText(
 		"source node",
 		audit.SourceNode,
-		255,
+		MaxSourceNodeBytes,
 		false,
 	); err != nil {
 		return err
@@ -235,7 +249,7 @@ func validateMutationAudit(audit MutationAudit) error {
 	if err := validateAuditText(
 		"source host",
 		audit.SourceHost,
-		255,
+		MaxSourceHostBytes,
 		false,
 	); err != nil {
 		return err
@@ -293,42 +307,6 @@ func validateAuditText(
 				"%w: %s contains unsafe characters",
 				ErrInvalidRequest,
 				field,
-			)
-		}
-	}
-
-	return nil
-}
-
-func validateActor(actor string) error {
-	if actor == "" {
-		return fmt.Errorf(
-			"%w: mutating operation requires authenticated actor",
-			ErrInvalidRequest,
-		)
-	}
-
-	if len(actor) > MaxActorBytes {
-		return fmt.Errorf(
-			"%w: actor exceeds %d bytes",
-			ErrInvalidRequest,
-			MaxActorBytes,
-		)
-	}
-
-	if strings.TrimSpace(actor) != actor {
-		return fmt.Errorf(
-			"%w: actor contains surrounding whitespace",
-			ErrInvalidRequest,
-		)
-	}
-
-	for _, value := range actor {
-		if unicode.IsControl(value) ||
-			unicode.In(value, unicode.Cf) {
-			return fmt.Errorf(
-				"%w: actor contains unsafe characters",
-				ErrInvalidRequest,
 			)
 		}
 	}

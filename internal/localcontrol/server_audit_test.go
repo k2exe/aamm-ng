@@ -46,8 +46,8 @@ func TestServeEmitsMutationAuditThroughSocketPath(t *testing.T) {
 	}
 
 	_, err = connection.Write([]byte(
-		`{"version":1,"operation":"write","target":"all",` +
-			`"message":"SECRET MESSAGE","actor":"TEST-NODE-A"}` +
+		`{"version":2,"operation":"write","target":"all",` +
+			`"message":"SECRET MESSAGE","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}` +
 			"\n",
 	))
 	if err != nil {
@@ -88,7 +88,7 @@ func TestServeEmitsMutationAuditThroughSocketPath(t *testing.T) {
 
 	for _, expected := range []string{
 		"aamm-ng audit",
-		`actor="TEST-NODE-A"`,
+		`auth_node="TEST-NODE-A"`,
 		`operation="write"`,
 		`target="all"`,
 		`outcome="success"`,
@@ -143,9 +143,10 @@ func TestServeAuditsMutationRejectedBeforeDispatch(t *testing.T) {
 	}
 
 	_, err = connection.Write([]byte(
-		`{"version":1,"operation":"write","target":"all",` +
+		`{"version":2,"operation":"write","target":"all",` +
 			`"message":"SECRET REJECTED MESSAGE",` +
-			`"actor":"TEST-NODE-A\nforged"}` +
+			`"audit":{"auth_node":"TEST-NODE-A\nforged",` +
+			`"auth_role":"admin","source_ip":"192.0.2.44"}}` +
 			"\n",
 	))
 	if err != nil {
@@ -186,7 +187,6 @@ func TestServeAuditsMutationRejectedBeforeDispatch(t *testing.T) {
 
 	for _, expected := range []string{
 		"aamm-ng audit",
-		`actor=""`,
 		`operation="write"`,
 		`target="all"`,
 		`outcome="failure"`,
@@ -202,6 +202,11 @@ func TestServeAuditsMutationRejectedBeforeDispatch(t *testing.T) {
 	}
 
 	for _, forbidden := range []string{
+		"auth_node=",
+		"auth_role=",
+		"source_ip=",
+		"source_node=",
+		"source_host=",
 		"TEST-NODE-A",
 		"forged",
 		"SECRET REJECTED MESSAGE",
