@@ -19,7 +19,7 @@ func (client *Client) Delete(
 		)
 	}
 
-	actor, err := actorFromContext(ctx)
+	audit, err := client.mutationAuditFromContext(ctx)
 	if err != nil {
 		return DeleteResult{}, err
 	}
@@ -30,7 +30,7 @@ func (client *Client) Delete(
 			Version:   ProtocolVersion,
 			Operation: OperationDelete,
 			Target:    parsedTarget.String(),
-			Actor:     actor,
+			Audit:     &audit,
 		},
 	)
 	if err != nil {

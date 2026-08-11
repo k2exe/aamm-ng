@@ -10,6 +10,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/k2exe/aamm-ng/internal/arednsource"
 )
 
 const MaxResponseBytes = 1 << 20
@@ -20,13 +22,20 @@ var (
 	ErrControlUnavailable = errors.New("local control unavailable")
 )
 
+type sourceResolver func(
+	context.Context,
+	string,
+) (arednsource.Attribution, error)
+
 type Client struct {
-	socketPath string
+	socketPath    string
+	resolveSource sourceResolver
 }
 
 func NewClient() *Client {
 	return &Client{
-		socketPath: ProductionSocketPath,
+		socketPath:    ProductionSocketPath,
+		resolveSource: arednsource.ResolveLocal,
 	}
 }
 

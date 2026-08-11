@@ -3,6 +3,7 @@ package webadmin
 import (
 	"context"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/arednauth"
@@ -47,18 +48,44 @@ func RequireAdmin(
 			return
 		}
 
+		sourceIP, ok := trustedSourceIP(request)
+		if !ok {
+			serviceUnavailable(writer)
+			return
+		}
+
 		ctx := auditidentity.WithIdentity(
 			request.Context(),
 			auditidentity.Identity{
-				Name: session.Name,
+				Name:     session.Name,
+				SourceIP: sourceIP,
 			},
 		)
 
+		nextRequest := request.WithContext(ctx)
+		nextRequest.Header = request.Header.Clone()
+		nextRequest.Header.Del(auditidentity.SourceIPHeader)
+
 		next.ServeHTTP(
 			writer,
-			request.WithContext(ctx),
+			nextRequest,
 		)
 	})
+}
+
+func trustedSourceIP(request *http.Request) (string, bool) {
+	if request == nil {
+		return "", false
+	}
+
+	address, err := netip.ParseAddr(
+		request.Header.Get(auditidentity.SourceIPHeader),
+	)
+	if err != nil {
+		return "", false
+	}
+
+	return address.Unmap().String(), true
 }
 
 func setAuthResponseHeaders(writer http.ResponseWriter) {

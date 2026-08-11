@@ -7,16 +7,16 @@ import (
 )
 
 func TestPublicAPI(t *testing.T) {
-	target, err := alerttarget.Parse("K2EXE-HAP-RB")
+	target, err := alerttarget.Parse("TEST-NODE-A")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if target.String() != "k2exe-hap-rb" {
+	if target.String() != "test-node-a" {
 		t.Fatalf("String() = %q", target.String())
 	}
 
-	if target.Filename() != "k2exe-hap-rb.txt" {
+	if target.Filename() != "test-node-a.txt" {
 		t.Fatalf("Filename() = %q", target.Filename())
 	}
 }

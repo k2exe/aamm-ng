@@ -2,8 +2,11 @@ package auditidentity
 
 import "context"
 
+const SourceIPHeader = "X-AAMM-Remote-Addr"
+
 type Identity struct {
-	Name string
+	Name     string
+	SourceIP string
 }
 
 type contextKey struct{}

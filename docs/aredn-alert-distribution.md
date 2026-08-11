@@ -14,7 +14,7 @@ The AREDN web server makes this directory available at:
 
 Example:
 
-`http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam`
+`http://TEST-NODE-A.local.mesh/aam`
 
 AAMM-NG can create these files:
 
@@ -30,7 +30,7 @@ AAMM-NG can create these files:
 
    Example:
 
-   `http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam`
+   `http://TEST-NODE-A.local.mesh/aam`
 
 3. If the node must receive group alerts, set **Message Groups**.
 
@@ -42,7 +42,7 @@ AAMM-NG can create these files:
 
 The equivalent UCI commands are:
 
-    uci set aredn.@alerts[0].localpath='http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam'
+    uci set aredn.@alerts[0].localpath='http://TEST-NODE-A.local.mesh/aam'
     uci set aredn.@alerts[0].groups='wx,skywarn'
     uci commit aredn
 
@@ -66,7 +66,7 @@ AREDN changes node names and group names to lowercase before it checks the files
 
 Run this command on a consumer node:
 
-    wget -q -T 5 -O - http://K2EXE-BBRC-CLOUD-RTR.local.mesh/aam/all.txt
+    wget -q -T 5 -O - http://TEST-NODE-A.local.mesh/aam/all.txt
 
 If the command is successful, it shows the current `all.txt` alert.
 

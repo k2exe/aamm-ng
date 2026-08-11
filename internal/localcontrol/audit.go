@@ -27,6 +27,12 @@ func writeRejectedMutationAudit(
 		safeRequest.Target = target.String()
 	}
 
+	if request.Audit != nil &&
+		validateMutationAudit(*request.Audit) == nil {
+		audit := *request.Audit
+		safeRequest.Audit = &audit
+	}
+
 	writeMutationAudit(
 		writer,
 		timestamp,
@@ -58,9 +64,39 @@ func writeMutationAudit(
 
 	_, _ = fmt.Fprintf(
 		writer,
-		"aamm-ng audit timestamp=%s actor=%s operation=%s target=%s outcome=%s",
+		"aamm-ng audit timestamp=%s",
 		timestamp.UTC().Format(time.RFC3339Nano),
-		strconv.Quote(request.Actor),
+	)
+
+	if request.Audit != nil {
+		_, _ = fmt.Fprintf(
+			writer,
+			" auth_node=%s auth_role=%s source_ip=%s",
+			strconv.Quote(request.Audit.AuthNode),
+			strconv.Quote(request.Audit.AuthRole),
+			strconv.Quote(request.Audit.SourceIP),
+		)
+
+		if request.Audit.SourceNode != "" {
+			_, _ = fmt.Fprintf(
+				writer,
+				" source_node=%s",
+				strconv.Quote(request.Audit.SourceNode),
+			)
+		}
+
+		if request.Audit.SourceHost != "" {
+			_, _ = fmt.Fprintf(
+				writer,
+				" source_host=%s",
+				strconv.Quote(request.Audit.SourceHost),
+			)
+		}
+	}
+
+	_, _ = fmt.Fprintf(
+		writer,
+		" operation=%s target=%s outcome=%s",
 		strconv.Quote(string(request.Operation)),
 		strconv.Quote(request.Target),
 		strconv.Quote(outcome),

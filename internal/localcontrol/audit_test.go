@@ -21,7 +21,7 @@ func TestWriteMutationAuditSuccess(t *testing.T) {
 		Operation: OperationWrite,
 		Target:    "all",
 		Message:   "SECRET MESSAGE MUST NOT BE LOGGED",
-		Actor:     "K2EXE",
+		Audit:     testMutationAudit(),
 	}
 
 	writeMutationAudit(
@@ -39,7 +39,11 @@ func TestWriteMutationAuditSuccess(t *testing.T) {
 	for _, expected := range []string{
 		`aamm-ng audit`,
 		`timestamp=2026-08-11T04:24:30Z`,
-		`actor="K2EXE"`,
+		`auth_node="TEST-NODE-A"`,
+		`auth_role="admin"`,
+		`source_ip="192.0.2.44"`,
+		`source_node="TEST-NODE-B"`,
+		`source_host="test-workstation"`,
 		`operation="write"`,
 		`target="all"`,
 		`outcome="success"`,
@@ -80,7 +84,7 @@ func TestWriteMutationAuditFailure(t *testing.T) {
 			Version:   ProtocolVersion,
 			Operation: OperationDelete,
 			Target:    "weather",
-			Actor:     "K2EXE",
+			Audit:     testMutationAudit(),
 		},
 		Failure(
 			ErrorOversizedConflict,
@@ -91,7 +95,11 @@ func TestWriteMutationAuditFailure(t *testing.T) {
 	got := output.String()
 
 	for _, expected := range []string{
-		`actor="K2EXE"`,
+		`auth_node="TEST-NODE-A"`,
+		`auth_role="admin"`,
+		`source_ip="192.0.2.44"`,
+		`source_node="TEST-NODE-B"`,
+		`source_host="test-workstation"`,
 		`operation="delete"`,
 		`target="weather"`,
 		`outcome="failure"`,
@@ -111,6 +119,55 @@ func TestWriteMutationAuditFailure(t *testing.T) {
 			"audit record leaked error detail: %q",
 			got,
 		)
+	}
+}
+
+func TestWriteMutationAuditOmitsUnavailableSourceMetadata(t *testing.T) {
+	var output bytes.Buffer
+
+	audit := testRequiredMutationAudit()
+
+	writeMutationAudit(
+		&output,
+		time.Now(),
+		Request{
+			Version:   ProtocolVersion,
+			Operation: OperationDelete,
+			Target:    "all",
+			Audit:     &audit,
+		},
+		Success(DeleteResult{
+			Target: "all",
+		}),
+	)
+
+	got := output.String()
+
+	for _, expected := range []string{
+		`auth_node="TEST-NODE-A"`,
+		`auth_role="admin"`,
+		`source_ip="192.0.2.44"`,
+	} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf(
+				"audit record missing %q: %q",
+				expected,
+				got,
+			)
+		}
+	}
+
+	for _, forbidden := range []string{
+		"source_node=",
+		"source_host=",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf(
+				"audit record unexpectedly contains %q: %q",
+				forbidden,
+				got,
+			)
+		}
 	}
 }
 
@@ -150,7 +207,7 @@ func TestWriteMutationAuditQuotesUnsafeTarget(t *testing.T) {
 			Version:   ProtocolVersion,
 			Operation: OperationDelete,
 			Target:    "all\nforged-entry",
-			Actor:     "K2EXE",
+			Audit:     testMutationAudit(),
 		},
 		Failure(
 			ErrorInvalidTarget,

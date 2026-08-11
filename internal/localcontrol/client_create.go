@@ -29,7 +29,7 @@ func (client *Client) Create(
 		)
 	}
 
-	actor, err := actorFromContext(ctx)
+	audit, err := client.mutationAuditFromContext(ctx)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -41,7 +41,7 @@ func (client *Client) Create(
 			Operation: OperationCreate,
 			Target:    parsedTarget.String(),
 			Message:   parsedMessage.String(),
-			Actor:     actor,
+			Audit:     &audit,
 		},
 	)
 	if err != nil {

@@ -45,6 +45,14 @@ func TestClientCreateSendsCanonicalRequest(t *testing.T) {
 			return
 		}
 
+		if err := validateTestRequestAudit(
+			request,
+			*testMutationAudit(),
+		); err != nil {
+			serverErr <- err
+			return
+		}
+
 		if request.Operation != OperationCreate {
 			serverErr <- errors.New("unexpected operation")
 			return
@@ -66,7 +74,7 @@ func TestClientCreateSendsCanonicalRequest(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":true,"result":`+
+			`{"version":2,"ok":true,"result":`+
 				`{"target":"all","kind":"managed"}}`+"\n",
 		)
 
@@ -74,7 +82,8 @@ func TestClientCreateSendsCanonicalRequest(t *testing.T) {
 	}()
 
 	client := &Client{
-		socketPath: socketPath,
+		socketPath:    socketPath,
+		resolveSource: testResolvedSource,
 	}
 
 	result, err := client.Create(
