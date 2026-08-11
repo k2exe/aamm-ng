@@ -25,6 +25,28 @@ func (client *Client) sourceAttribution(
 		return arednsource.Attribution{}
 	}
 
+	if err := validateAuditText(
+		"source node",
+		attribution.SourceNode,
+		MaxSourceNodeBytes,
+		false,
+	); err != nil {
+		return arednsource.Attribution{}
+	}
+
+	if attribution.SourceNode == "" {
+		return arednsource.Attribution{}
+	}
+
+	if err := validateAuditText(
+		"source host",
+		attribution.SourceHost,
+		MaxSourceHostBytes,
+		false,
+	); err != nil {
+		attribution.SourceHost = ""
+	}
+
 	return attribution
 }
 

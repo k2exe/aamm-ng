@@ -359,3 +359,96 @@ func TestMutationAuditFromContextRejectsMissingSourceAddress(t *testing.T) {
 		)
 	}
 }
+
+func TestMutationAuditFromContextDropsInvalidOptionalAttribution(
+	t *testing.T,
+) {
+	tests := []struct {
+		name        string
+		attribution arednsource.Attribution
+		wantNode    string
+		wantHost    string
+	}{
+		{
+			name: "invalid source host preserves source node",
+			attribution: arednsource.Attribution{
+				SourceNode: "TEST-NODE-B",
+				SourceHost: " bad-host",
+			},
+			wantNode: "TEST-NODE-B",
+		},
+		{
+			name: "invalid source node drops optional attribution",
+			attribution: arednsource.Attribution{
+				SourceNode: "BAD\nNODE",
+				SourceHost: "test-workstation",
+			},
+		},
+		{
+			name: "source host without source node is dropped",
+			attribution: arednsource.Attribution{
+				SourceHost: "test-workstation",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &Client{
+				resolveSource: func(
+					context.Context,
+					string,
+				) (arednsource.Attribution, error) {
+					return test.attribution, nil
+				},
+			}
+
+			got, err := client.mutationAuditFromContext(
+				testMutationContext(),
+			)
+			if err != nil {
+				t.Fatalf(
+					"mutationAuditFromContext returned error: %v",
+					err,
+				)
+			}
+
+			if got.AuthNode != "TEST-NODE-A" {
+				t.Fatalf(
+					"AuthNode = %q; want TEST-NODE-A",
+					got.AuthNode,
+				)
+			}
+
+			if got.AuthRole != "admin" {
+				t.Fatalf(
+					"AuthRole = %q; want admin",
+					got.AuthRole,
+				)
+			}
+
+			if got.SourceIP != "192.0.2.44" {
+				t.Fatalf(
+					"SourceIP = %q; want 192.0.2.44",
+					got.SourceIP,
+				)
+			}
+
+			if got.SourceNode != test.wantNode {
+				t.Fatalf(
+					"SourceNode = %q; want %q",
+					got.SourceNode,
+					test.wantNode,
+				)
+			}
+
+			if got.SourceHost != test.wantHost {
+				t.Fatalf(
+					"SourceHost = %q; want %q",
+					got.SourceHost,
+					test.wantHost,
+				)
+			}
+		})
+	}
+}
