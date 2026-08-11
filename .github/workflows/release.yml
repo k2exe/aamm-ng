@@ -155,23 +155,23 @@ jobs:
         include:
           - target: ath79-generic
             arch: mips_24kc
-            image: ghcr.io/k2exe/aredn-go-builder:ath79-generic-4.26.7.0
+            image: ghcr.io/k2exe/aredn-go-builder@sha256:ea5d47afa2c8beb82f7c72bd13d8a000c75d881ad9d567832f9840347d12184a
 
           - target: ipq40xx-mikrotik
             arch: arm_cortex-a7_neon-vfpv4
-            image: ghcr.io/k2exe/aredn-go-builder:ipq40xx-mikrotik-4.26.7.0
+            image: ghcr.io/k2exe/aredn-go-builder@sha256:13eeea48d62a0e44ef05cbb8a8ea940c91a06899a5a1192be804711e4cb59d26
 
           - target: ramips-mt7621
             arch: mipsel_24kc
-            image: ghcr.io/k2exe/aredn-go-builder:ramips-mt7621-4.26.7.0
+            image: ghcr.io/k2exe/aredn-go-builder@sha256:8eeea6d5b836b22d10914a9723e8d905cb35044a79e2f5cf894c229a05f0e603
 
           - target: mediatek-filogic
             arch: aarch64_cortex-a53
-            image: ghcr.io/k2exe/aredn-go-builder:mediatek-filogic-4.26.7.0
+            image: ghcr.io/k2exe/aredn-go-builder@sha256:74df61b51562f13d567a8f0728094f9f38b908d01f079486bdd54d411fa609e6
 
           - target: x86-64
             arch: x86_64
-            image: ghcr.io/k2exe/aredn-go-builder:x86-64-4.26.7.0
+            image: ghcr.io/k2exe/aredn-go-builder@sha256:1be7abe72c6917d101571298275140243aa3cef97945908a283200e39b9dba80
 
     container:
       image: ${{ matrix.image }}
