@@ -47,7 +47,7 @@ func TestServeEmitsMutationAuditThroughSocketPath(t *testing.T) {
 
 	_, err = connection.Write([]byte(
 		`{"version":1,"operation":"write","target":"all",` +
-			`"message":"SECRET MESSAGE","actor":"K2EXE"}` +
+			`"message":"SECRET MESSAGE","actor":"TEST-NODE-A"}` +
 			"\n",
 	))
 	if err != nil {
@@ -88,7 +88,7 @@ func TestServeEmitsMutationAuditThroughSocketPath(t *testing.T) {
 
 	for _, expected := range []string{
 		"aamm-ng audit",
-		`actor="K2EXE"`,
+		`actor="TEST-NODE-A"`,
 		`operation="write"`,
 		`target="all"`,
 		`outcome="success"`,
@@ -145,7 +145,7 @@ func TestServeAuditsMutationRejectedBeforeDispatch(t *testing.T) {
 	_, err = connection.Write([]byte(
 		`{"version":1,"operation":"write","target":"all",` +
 			`"message":"SECRET REJECTED MESSAGE",` +
-			`"actor":"K2EXE\nforged"}` +
+			`"actor":"TEST-NODE-A\nforged"}` +
 			"\n",
 	))
 	if err != nil {
@@ -202,7 +202,7 @@ func TestServeAuditsMutationRejectedBeforeDispatch(t *testing.T) {
 	}
 
 	for _, forbidden := range []string{
-		"K2EXE",
+		"TEST-NODE-A",
 		"forged",
 		"SECRET REJECTED MESSAGE",
 	} {

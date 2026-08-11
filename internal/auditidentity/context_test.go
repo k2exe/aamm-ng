@@ -8,7 +8,7 @@ import (
 func TestIdentityRoundTrip(t *testing.T) {
 	ctx := WithIdentity(
 		context.Background(),
-		Identity{Name: "K2EXE"},
+		Identity{Name: "TEST-NODE-A"},
 	)
 
 	identity, ok := FromContext(ctx)
@@ -16,9 +16,9 @@ func TestIdentityRoundTrip(t *testing.T) {
 		t.Fatal("FromContext() did not return identity")
 	}
 
-	if identity.Name != "K2EXE" {
+	if identity.Name != "TEST-NODE-A" {
 		t.Fatalf(
-			"identity name = %q; want K2EXE",
+			"identity name = %q; want TEST-NODE-A",
 			identity.Name,
 		)
 	}

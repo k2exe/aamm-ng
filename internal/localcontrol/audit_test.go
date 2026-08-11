@@ -21,7 +21,7 @@ func TestWriteMutationAuditSuccess(t *testing.T) {
 		Operation: OperationWrite,
 		Target:    "all",
 		Message:   "SECRET MESSAGE MUST NOT BE LOGGED",
-		Actor:     "K2EXE",
+		Actor:     "TEST-NODE-A",
 	}
 
 	writeMutationAudit(
@@ -39,7 +39,7 @@ func TestWriteMutationAuditSuccess(t *testing.T) {
 	for _, expected := range []string{
 		`aamm-ng audit`,
 		`timestamp=2026-08-11T04:24:30Z`,
-		`actor="K2EXE"`,
+		`actor="TEST-NODE-A"`,
 		`operation="write"`,
 		`target="all"`,
 		`outcome="success"`,
@@ -80,7 +80,7 @@ func TestWriteMutationAuditFailure(t *testing.T) {
 			Version:   ProtocolVersion,
 			Operation: OperationDelete,
 			Target:    "weather",
-			Actor:     "K2EXE",
+			Actor:     "TEST-NODE-A",
 		},
 		Failure(
 			ErrorOversizedConflict,
@@ -91,7 +91,7 @@ func TestWriteMutationAuditFailure(t *testing.T) {
 	got := output.String()
 
 	for _, expected := range []string{
-		`actor="K2EXE"`,
+		`actor="TEST-NODE-A"`,
 		`operation="delete"`,
 		`target="weather"`,
 		`outcome="failure"`,
@@ -150,7 +150,7 @@ func TestWriteMutationAuditQuotesUnsafeTarget(t *testing.T) {
 			Version:   ProtocolVersion,
 			Operation: OperationDelete,
 			Target:    "all\nforged-entry",
-			Actor:     "K2EXE",
+			Actor:     "TEST-NODE-A",
 		},
 		Failure(
 			ErrorInvalidTarget,

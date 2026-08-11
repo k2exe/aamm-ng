@@ -11,7 +11,7 @@ func TestParseValidTargets(t *testing.T) {
 		"all":                          "all",
 		"weather":                      "weather",
 		"group_1":                      "group_1",
-		"K2EXE-HAP-RB":                 "k2exe-hap-rb",
+		"TEST-NODE-A":                  "test-node-a",
 		"node-123":                     "node-123",
 		strings.Repeat("a", MaxLength): strings.Repeat("a", MaxLength),
 	}
@@ -69,12 +69,12 @@ func TestParseRejectsInvalidTargets(t *testing.T) {
 }
 
 func TestFilename(t *testing.T) {
-	target, err := Parse("K2EXE-HAP-RB")
+	target, err := Parse("TEST-NODE-A")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	const expected = "k2exe-hap-rb.txt"
+	const expected = "test-node-a.txt"
 
 	if target.Filename() != expected {
 		t.Fatalf("Filename() = %q; want %q", target.Filename(), expected)

@@ -41,7 +41,7 @@ func TestRequireAdminAllowsAuthenticatedRequest(t *testing.T) {
 	)
 	request.Header.Set(
 		auditidentity.SourceIPHeader,
-		"10.79.135.157",
+		"192.0.2.44",
 	)
 
 	response := httptest.NewRecorder()
@@ -74,7 +74,7 @@ func TestRequireAdminAllowsAuthenticatedRequest(t *testing.T) {
 func TestRequireAdminAddsAuthenticatedIdentityToContext(t *testing.T) {
 	verifier := &fakeVerifier{
 		authenticated: true,
-		name:          "K2EXE",
+		name:          "TEST-NODE-A",
 	}
 
 	handler := RequireAdmin(
@@ -90,16 +90,16 @@ func TestRequireAdminAddsAuthenticatedIdentityToContext(t *testing.T) {
 				t.Fatal("authenticated identity missing from context")
 			}
 
-			if identity.Name != "K2EXE" {
+			if identity.Name != "TEST-NODE-A" {
 				t.Fatalf(
-					"identity name = %q; want K2EXE",
+					"identity name = %q; want TEST-NODE-A",
 					identity.Name,
 				)
 			}
 
-			if identity.SourceIP != "10.79.135.157" {
+			if identity.SourceIP != "192.0.2.44" {
 				t.Fatalf(
-					"identity source IP = %q; want 10.79.135.157",
+					"identity source IP = %q; want 192.0.2.44",
 					identity.SourceIP,
 				)
 			}
@@ -126,7 +126,7 @@ func TestRequireAdminAddsAuthenticatedIdentityToContext(t *testing.T) {
 	)
 	request.Header.Set(
 		auditidentity.SourceIPHeader,
-		"10.79.135.157",
+		"192.0.2.44",
 	)
 
 	response := httptest.NewRecorder()
@@ -319,7 +319,7 @@ func TestRequireAdminSetsNoStoreHeaders(t *testing.T) {
 	)
 	request.Header.Set(
 		auditidentity.SourceIPHeader,
-		"10.79.135.157",
+		"192.0.2.44",
 	)
 
 	response := httptest.NewRecorder()
@@ -369,7 +369,7 @@ func TestRequireAdminSetsNoStoreHeaders(t *testing.T) {
 func TestRequireAdminFailsClosedWithoutSourceIP(t *testing.T) {
 	verifier := &fakeVerifier{
 		authenticated: true,
-		name:          "K2EXE-BBRC-CLOUD-RTR",
+		name:          "TEST-NODE-A",
 	}
 
 	handler := RequireAdmin(
@@ -407,7 +407,7 @@ func TestRequireAdminFailsClosedWithoutSourceIP(t *testing.T) {
 func TestRequireAdminFailsClosedWithInvalidSourceIP(t *testing.T) {
 	verifier := &fakeVerifier{
 		authenticated: true,
-		name:          "K2EXE-BBRC-CLOUD-RTR",
+		name:          "TEST-NODE-A",
 	}
 
 	handler := RequireAdmin(

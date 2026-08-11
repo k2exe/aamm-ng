@@ -13,7 +13,7 @@ func testMutationContext() context.Context {
 	return auditidentity.WithIdentity(
 		context.Background(),
 		auditidentity.Identity{
-			Name: "K2EXE",
+			Name: "TEST-NODE-A",
 		},
 	)
 }

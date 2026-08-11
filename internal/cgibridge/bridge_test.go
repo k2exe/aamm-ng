@@ -331,7 +331,7 @@ func TestNewRequestUsesCGIRemoteAddress(t *testing.T) {
 	values := map[string]string{
 		"REQUEST_METHOD":          "GET",
 		"HTTP_HOST":               "node.local.mesh",
-		"REMOTE_ADDR":             "10.79.135.157",
+		"REMOTE_ADDR":             "192.0.2.44",
 		"HTTP_X_AAMM_REMOTE_ADDR": "203.0.113.99",
 	}
 
@@ -346,9 +346,9 @@ func TestNewRequestUsesCGIRemoteAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := request.Header.Get("X-AAMM-Remote-Addr"); got != "10.79.135.157" {
+	if got := request.Header.Get("X-AAMM-Remote-Addr"); got != "192.0.2.44" {
 		t.Fatalf(
-			"source address = %q; want 10.79.135.157",
+			"source address = %q; want 192.0.2.44",
 			got,
 		)
 	}

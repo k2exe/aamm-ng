@@ -26,26 +26,26 @@ func TestDecodeRequestAcceptsOperations(t *testing.T) {
 		},
 		{
 			name:      "create",
-			input:     `{"version":1,"operation":"create","target":"all","message":"Net open","actor":"K2EXE"}`,
-			actor:     "K2EXE",
+			input:     `{"version":1,"operation":"create","target":"all","message":"Net open","actor":"TEST-NODE-A"}`,
+			actor:     "TEST-NODE-A",
 			operation: OperationCreate,
 		},
 		{
 			name:      "write",
-			input:     `{"version":1,"operation":"write","target":"all","message":"Net open","actor":"K2EXE"}`,
-			actor:     "K2EXE",
+			input:     `{"version":1,"operation":"write","target":"all","message":"Net open","actor":"TEST-NODE-A"}`,
+			actor:     "TEST-NODE-A",
 			operation: OperationWrite,
 		},
 		{
 			name:      "convert",
-			input:     `{"version":1,"operation":"convert","target":"all","message":"Replacement","actor":"K2EXE"}`,
-			actor:     "K2EXE",
+			input:     `{"version":1,"operation":"convert","target":"all","message":"Replacement","actor":"TEST-NODE-A"}`,
+			actor:     "TEST-NODE-A",
 			operation: OperationConvert,
 		},
 		{
 			name:      "delete",
-			input:     `{"version":1,"operation":"delete","target":"all","actor":"K2EXE"}`,
-			actor:     "K2EXE",
+			input:     `{"version":1,"operation":"delete","target":"all","actor":"TEST-NODE-A"}`,
+			actor:     "TEST-NODE-A",
 			operation: OperationDelete,
 		},
 	}
@@ -100,10 +100,10 @@ func TestDecodeRequestRequiresActorForMutations(t *testing.T) {
 func TestDecodeRequestRejectsUnsafeActor(t *testing.T) {
 	tests := []string{
 		"",
-		" K2EXE",
-		"K2EXE ",
-		"K2EXE\nforged",
-		"K2EXE\u202Eevil",
+		" TEST-NODE-A",
+		"TEST-NODE-A ",
+		"TEST-NODE-A\nforged",
+		"TEST-NODE-A\u202Eevil",
 		strings.Repeat("x", MaxActorBytes+1),
 	}
 

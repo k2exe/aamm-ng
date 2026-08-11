@@ -564,7 +564,7 @@ func newTestRequest(
 	)
 	request.Header.Set(
 		auditidentity.SourceIPHeader,
-		"10.79.135.157",
+		"192.0.2.44",
 	)
 
 	return request
