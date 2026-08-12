@@ -452,7 +452,6 @@ var landingTemplate = template.Must(
 						id="target"
 						name="target"
 						type="text"
-						list="aamm-local-nodes"
 						autocomplete="off"
 						autofocus
 						maxlength="63"
@@ -464,17 +463,25 @@ var landingTemplate = template.Must(
 					<button
 						type="button"
 						data-aamm-find-node
+						aria-controls="aamm-node-results"
+						aria-expanded="false"
 					>
 						Find node
 					</button>
 
-					<datalist id="aamm-local-nodes"></datalist>
+					<div
+						id="aamm-node-results"
+						class="aamm-node-results"
+						data-aamm-node-results
+						role="group"
+						aria-label="Local AREDN nodes"
+						hidden
+					></div>
 				</div>
 
 				<div class="m">
 					Use <strong>all</strong> for all nodes, enter a node target,
-					or use <strong>Find node</strong> to search nodes directly known
-					to this AREDN node.
+					or use <strong>Find node</strong> to search the local AREDN mesh.
 					Letters, numbers, hyphen, and underscore are supported.
 				</div>
 

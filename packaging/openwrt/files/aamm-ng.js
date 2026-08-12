@@ -26,17 +26,29 @@
     const findNodeButton = modal.querySelector("[data-aamm-find-node]");
     const nodeStatus = modal.querySelector("[data-aamm-node-status]");
     const targetInput = modal.querySelector("#target");
-    const nodeList = modal.querySelector("#aamm-local-nodes");
+    const nodeResults = modal.querySelector("[data-aamm-node-results]");
+
+    function closeNodeResults() {
+        if (!nodeResults || !findNodeButton) {
+            return;
+        }
+
+        nodeResults.hidden = true;
+        findNodeButton.setAttribute("aria-expanded", "false");
+    }
 
     if (
         nodePicker &&
         findNodeButton &&
         nodeStatus &&
         targetInput &&
-        nodeList
+        nodeResults
     ) {
         findNodeButton.addEventListener("click", async function () {
             const endpoint = nodePicker.dataset.aammNodeEndpoint || "";
+
+            nodeResults.replaceChildren();
+            closeNodeResults();
 
             if (!endpoint) {
                 nodeStatus.textContent =
@@ -66,32 +78,47 @@
                     throw new Error("invalid node discovery response");
                 }
 
-                nodeList.replaceChildren();
-
                 body.nodes.forEach(function (node) {
-                    if (typeof node !== "string") {
+                    if (typeof node !== "string" || node.length === 0) {
                         return;
                     }
 
-                    const option = document.createElement("option");
-                    option.value = node;
-                    nodeList.appendChild(option);
+                    const resultButton = document.createElement("button");
+                    resultButton.type = "button";
+                    resultButton.className = "aamm-node-result";
+                    resultButton.textContent = node;
+
+                    resultButton.addEventListener("click", function () {
+                        targetInput.value = node;
+                        closeNodeResults();
+                        nodeStatus.textContent =
+                            "Node selected. You can edit the target before creating the alert.";
+                        targetInput.focus();
+                    });
+
+                    nodeResults.appendChild(resultButton);
                 });
 
-                if (nodeList.children.length === 0) {
+                if (nodeResults.children.length === 0) {
                     nodeStatus.textContent =
-                        "No directly known local AREDN nodes were found.";
+                        "No nodes were found on the local AREDN mesh.";
+                    targetInput.focus();
                 }
                 else {
+                    nodeResults.hidden = false;
+                    findNodeButton.setAttribute("aria-expanded", "true");
                     nodeStatus.textContent =
-                        "Local node suggestions are ready. Type or select a target.";
-                }
+                        "Select a node from the local AREDN mesh, or enter a target manually.";
 
-                targetInput.focus();
+                    nodeResults.children[0].focus();
+                }
             }
             catch (_) {
+                nodeResults.replaceChildren();
+                closeNodeResults();
                 nodeStatus.textContent =
                     "Could not load local AREDN nodes. Enter a target manually.";
+                targetInput.focus();
             }
             finally {
                 findNodeButton.disabled = false;
