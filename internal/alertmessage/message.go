@@ -42,7 +42,8 @@ func Parse(value string) (Message, error) {
 			continue
 		}
 
-		if unicode.IsControl(character) {
+		if unicode.IsControl(character) ||
+			unicode.In(character, unicode.Cf) {
 			return Message{}, ErrControlCharacter
 		}
 	}
