@@ -122,6 +122,30 @@ func TestRuntimeResolveRejectsInvalidSourceBeforeIO(t *testing.T) {
 	}
 }
 
+func TestRuntimeMapsHostReaderFailure(t *testing.T) {
+	routeCommand := writeTestRouteCommand(
+		t,
+		"",
+	)
+
+	resolver := testRuntimeResolver(
+		filepath.Join(t.TempDir(), "missing"),
+		routeCommand,
+	)
+
+	_, err := resolver.resolve(
+		context.Background(),
+		"192.0.2.50",
+	)
+
+	if !errors.Is(err, ErrHostRecords) {
+		t.Fatalf(
+			"error = %v; want ErrHostRecords",
+			err,
+		)
+	}
+}
+
 func TestRuntimeRejectsOversizedRouteOutput(t *testing.T) {
 	hostDirectory := t.TempDir()
 

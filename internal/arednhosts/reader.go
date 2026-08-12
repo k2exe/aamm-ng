@@ -20,6 +20,13 @@ var (
 	ErrDataTooLarge = errors.New("AREDN host data exceeds limit")
 )
 
+type Config struct {
+	Directory     string
+	MaxFiles      int
+	MaxFileBytes  int64
+	MaxTotalBytes int64
+}
+
 type reader struct {
 	directory     string
 	maxFiles      int
@@ -48,6 +55,15 @@ func verifyOpenedFile(
 	}
 
 	return nil
+}
+
+func Read(config Config) ([]string, error) {
+	return reader{
+		directory:     config.Directory,
+		maxFiles:      config.MaxFiles,
+		maxFileBytes:  config.MaxFileBytes,
+		maxTotalBytes: config.MaxTotalBytes,
+	}.read()
 }
 
 func ReadLocal() ([]string, error) {

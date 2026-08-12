@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
+
+	"github.com/k2exe/aamm-ng/internal/arednhosts"
 )
 
 const (
@@ -70,9 +70,24 @@ func (r runtimeResolver) resolve(
 		return Attribution{}, ErrInvalidSource
 	}
 
-	hostRecords, err := r.readHostRecords()
+	hostRecords, err := arednhosts.Read(
+		arednhosts.Config{
+			Directory:     r.hostDirectory,
+			MaxFiles:      r.maxHostFiles,
+			MaxFileBytes:  r.maxHostFileBytes,
+			MaxTotalBytes: r.maxHostTotalBytes,
+		},
+	)
 	if err != nil {
-		return Attribution{}, err
+		if errors.Is(err, arednhosts.ErrDataTooLarge) {
+			return Attribution{}, ErrDataTooLarge
+		}
+
+		return Attribution{}, fmt.Errorf(
+			"%w: %v",
+			ErrHostRecords,
+			err,
+		)
 	}
 
 	routeOutput, err := r.readRoutes(ctx)
@@ -150,79 +165,4 @@ func (r runtimeResolver) readRoutes(
 	}
 
 	return string(output), nil
-}
-
-func (r runtimeResolver) readHostRecords() ([]string, error) {
-	entries, err := os.ReadDir(r.hostDirectory)
-	if err != nil {
-		return nil, fmt.Errorf("%w: directory", ErrHostRecords)
-	}
-
-	records := make([]string, 0, len(entries))
-	fileCount := 0
-	var totalBytes int64
-
-	for _, entry := range entries {
-		path := filepath.Join(
-			r.hostDirectory,
-			entry.Name(),
-		)
-
-		info, err := os.Lstat(path)
-		if err != nil {
-			return nil, fmt.Errorf("%w: stat", ErrHostRecords)
-		}
-
-		if info.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-
-		if !info.Mode().IsRegular() {
-			continue
-		}
-
-		fileCount++
-		if fileCount > r.maxHostFiles {
-			return nil, ErrDataTooLarge
-		}
-
-		if info.Size() > r.maxHostFileBytes {
-			return nil, ErrDataTooLarge
-		}
-
-		file, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("%w: open", ErrHostRecords)
-		}
-
-		data, readErr := io.ReadAll(
-			io.LimitReader(
-				file,
-				r.maxHostFileBytes+1,
-			),
-		)
-
-		closeErr := file.Close()
-
-		if readErr != nil {
-			return nil, fmt.Errorf("%w: read", ErrHostRecords)
-		}
-
-		if closeErr != nil {
-			return nil, fmt.Errorf("%w: close", ErrHostRecords)
-		}
-
-		if int64(len(data)) > r.maxHostFileBytes {
-			return nil, ErrDataTooLarge
-		}
-
-		totalBytes += int64(len(data))
-		if totalBytes > r.maxHostTotalBytes {
-			return nil, ErrDataTooLarge
-		}
-
-		records = append(records, string(data))
-	}
-
-	return records, nil
 }
