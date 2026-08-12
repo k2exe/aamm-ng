@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=aamm-ng
-PKG_VERSION:=0.1.1
+PKG_VERSION:=0.1.2
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
@@ -34,8 +34,9 @@ define Package/aamm-ng
 endef
 
 define Package/aamm-ng/description
- AAMM-NG provides authenticated management of AREDN alert messages
- using a privileged local daemon and separate unprivileged web service.
+ AAMM-NG gives AREDN operators a web interface to discover mesh nodes
+ and create, edit, and remove targeted alert messages with authenticated
+ audit tracking.
 endef
 
 define Package/aamm-ng/install
