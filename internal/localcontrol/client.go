@@ -11,6 +11,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/k2exe/aamm-ng/internal/aredndhcp"
 	"github.com/k2exe/aamm-ng/internal/arednsource"
 )
 
@@ -27,15 +28,19 @@ type sourceResolver func(
 	string,
 ) (arednsource.Attribution, error)
 
+type dhcpHostLookup func(string) (string, error)
+
 type Client struct {
-	socketPath    string
-	resolveSource sourceResolver
+	socketPath     string
+	resolveSource  sourceResolver
+	lookupDHCPHost dhcpHostLookup
 }
 
 func NewClient() *Client {
 	return &Client{
-		socketPath:    ProductionSocketPath,
-		resolveSource: arednsource.ResolveLocal,
+		socketPath:     ProductionSocketPath,
+		resolveSource:  arednsource.ResolveLocal,
+		lookupDHCPHost: aredndhcp.LookupLocal,
 	}
 }
 

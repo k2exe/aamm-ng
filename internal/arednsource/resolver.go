@@ -5,6 +5,9 @@ import (
 	"errors"
 	"net/netip"
 	"strings"
+
+	"github.com/k2exe/aamm-ng/internal/alerttarget"
+	"github.com/k2exe/aamm-ng/internal/arednhosts"
 )
 
 var (
@@ -180,81 +183,43 @@ func parseRouteDestination(value string) (netip.Prefix, bool) {
 }
 
 func parseHostRecords(records []string) []hostSection {
-	var sections []hostSection
+	parsedSections := arednhosts.Parse(records)
+	sections := make([]hostSection, 0, len(parsedSections))
 
-	for _, record := range records {
-		scanner := bufio.NewScanner(strings.NewReader(record))
+	for _, parsedSection := range parsedSections {
+		section := hostSection{
+			originator: parsedSection.Originator,
+		}
 
-		var current *hostSection
-
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
-
-			if originator, ok := parseSectionHeader(line); ok {
-				sections = append(
-					sections,
-					hostSection{
-						originator: originator,
-					},
-				)
-				current = &sections[len(sections)-1]
-				continue
-			}
-
-			if current == nil {
-				continue
-			}
-
-			fields := strings.Fields(line)
-			if len(fields) != 2 {
-				continue
-			}
-
-			address, err := netip.ParseAddr(fields[0])
-			if err != nil {
-				continue
-			}
-			address = address.Unmap()
-
+		for _, parsedEntry := range parsedSection.Entries {
 			entry := hostEntry{
-				address: address,
-				name:    fields[1],
+				address: parsedEntry.Address,
+				name:    parsedEntry.Name,
 			}
 
-			current.entries = append(
-				current.entries,
+			section.entries = append(
+				section.entries,
 				entry,
 			)
 
-			if address == current.originator {
-				current.node = entry.name
+			if section.node == "" &&
+				entry.address == section.originator {
+				target, err := alerttarget.Parse(entry.name)
+				if err != nil || target.String() == "all" {
+					continue
+				}
+
+				section.node = entry.name
 			}
 		}
+
+		sections = append(
+			sections,
+			section,
+		)
 	}
 
 	return sections
-}
-
-func parseSectionHeader(line string) (netip.Addr, bool) {
-	if !strings.HasPrefix(line, "##") ||
-		!strings.HasSuffix(line, "##") {
-		return netip.Addr{}, false
-	}
-
-	value := strings.TrimSuffix(
-		strings.TrimPrefix(line, "##"),
-		"##",
-	)
-
-	address, err := netip.ParseAddr(value)
-	if err != nil {
-		return netip.Addr{}, false
-	}
-
-	return address.Unmap(), true
 }
 
 func isLANName(name string, node string) bool {

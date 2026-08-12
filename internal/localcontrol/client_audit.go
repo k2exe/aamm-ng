@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/arednsource"
 	"github.com/k2exe/aamm-ng/internal/auditidentity"
@@ -75,6 +76,27 @@ func (client *Client) mutationAuditFromContext(
 		ctx,
 		sourceIP,
 	)
+
+	if client != nil &&
+		client.lookupDHCPHost != nil &&
+		attribution.SourceNode != "" &&
+		attribution.SourceHost == "" &&
+		strings.EqualFold(
+			attribution.SourceNode,
+			identity.Name,
+		) {
+		host, lookupErr := client.lookupDHCPHost(sourceIP)
+		if lookupErr == nil {
+			if validateAuditText(
+				"source host",
+				host,
+				MaxSourceHostBytes,
+				false,
+			) == nil {
+				attribution.SourceHost = host
+			}
+		}
+	}
 
 	audit := MutationAudit{
 		AuthNode:   identity.Name,

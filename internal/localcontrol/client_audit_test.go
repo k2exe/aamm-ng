@@ -452,3 +452,185 @@ func TestMutationAuditFromContextDropsInvalidOptionalAttribution(
 		})
 	}
 }
+
+func TestMutationAuditEnrichesLocalSourceHostFromDHCP(t *testing.T) {
+	lookupCalls := 0
+
+	client := &Client{
+		resolveSource: func(
+			context.Context,
+			string,
+		) (arednsource.Attribution, error) {
+			return arednsource.Attribution{
+				SourceNode: "test-node-a",
+			}, nil
+		},
+		lookupDHCPHost: func(sourceIP string) (string, error) {
+			lookupCalls++
+
+			if sourceIP != "192.0.2.44" {
+				t.Fatalf(
+					"DHCP source IP = %q; want 192.0.2.44",
+					sourceIP,
+				)
+			}
+
+			return "test-workstation", nil
+		},
+	}
+
+	got, err := client.mutationAuditFromContext(
+		testMutationContext(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if lookupCalls != 1 {
+		t.Fatalf(
+			"DHCP lookup calls = %d; want 1",
+			lookupCalls,
+		)
+	}
+
+	want := MutationAudit{
+		AuthNode:   "TEST-NODE-A",
+		AuthRole:   "admin",
+		SourceIP:   "192.0.2.44",
+		SourceNode: "test-node-a",
+		SourceHost: "test-workstation",
+	}
+
+	if got != want {
+		t.Fatalf(
+			"audit = %#v; want %#v",
+			got,
+			want,
+		)
+	}
+}
+
+func TestMutationAuditDoesNotUseDHCPForRemoteSource(t *testing.T) {
+	client := &Client{
+		resolveSource: func(
+			context.Context,
+			string,
+		) (arednsource.Attribution, error) {
+			return arednsource.Attribution{
+				SourceNode: "TEST-NODE-B",
+			}, nil
+		},
+		lookupDHCPHost: func(string) (string, error) {
+			t.Fatal("DHCP lookup called for remote source")
+			return "", nil
+		},
+	}
+
+	got, err := client.mutationAuditFromContext(
+		testMutationContext(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.SourceHost != "" {
+		t.Fatalf(
+			"SourceHost = %q; want empty",
+			got.SourceHost,
+		)
+	}
+}
+
+func TestMutationAuditKeepsPropagatedSourceHostBeforeDHCP(
+	t *testing.T,
+) {
+	client := &Client{
+		resolveSource: func(
+			context.Context,
+			string,
+		) (arednsource.Attribution, error) {
+			return arednsource.Attribution{
+				SourceNode: "TEST-NODE-A",
+				SourceHost: "propagated-workstation",
+			}, nil
+		},
+		lookupDHCPHost: func(string) (string, error) {
+			t.Fatal("DHCP lookup replaced propagated SourceHost")
+			return "", nil
+		},
+	}
+
+	got, err := client.mutationAuditFromContext(
+		testMutationContext(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.SourceHost != "propagated-workstation" {
+		t.Fatalf(
+			"SourceHost = %q; want propagated-workstation",
+			got.SourceHost,
+		)
+	}
+}
+
+func TestMutationAuditTreatsDHCPFailureAsBestEffort(t *testing.T) {
+	client := &Client{
+		resolveSource: func(
+			context.Context,
+			string,
+		) (arednsource.Attribution, error) {
+			return arednsource.Attribution{
+				SourceNode: "TEST-NODE-A",
+			}, nil
+		},
+		lookupDHCPHost: func(string) (string, error) {
+			return "", errors.New("synthetic DHCP failure")
+		},
+	}
+
+	got, err := client.mutationAuditFromContext(
+		testMutationContext(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.SourceHost != "" {
+		t.Fatalf(
+			"SourceHost = %q; want empty",
+			got.SourceHost,
+		)
+	}
+}
+
+func TestMutationAuditDropsUnsafeDHCPHostname(t *testing.T) {
+	client := &Client{
+		resolveSource: func(
+			context.Context,
+			string,
+		) (arednsource.Attribution, error) {
+			return arednsource.Attribution{
+				SourceNode: "TEST-NODE-A",
+			}, nil
+		},
+		lookupDHCPHost: func(string) (string, error) {
+			return " bad-host", nil
+		},
+	}
+
+	got, err := client.mutationAuditFromContext(
+		testMutationContext(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.SourceHost != "" {
+		t.Fatalf(
+			"SourceHost = %q; want empty",
+			got.SourceHost,
+		)
+	}
+}
