@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/alerttarget"
+	"github.com/k2exe/aamm-ng/internal/appconfig"
 	"github.com/k2exe/aamm-ng/internal/arednnodes"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
@@ -19,6 +20,7 @@ type AlertManager interface {
 	Write(context.Context, string, string) (localcontrol.WriteResult, error)
 	Convert(context.Context, string, string) (localcontrol.ConvertResult, error)
 	Delete(context.Context, string) (localcontrol.DeleteResult, error)
+	SettingsRead(context.Context) (appconfig.Config, error)
 }
 
 type nodeFinder interface {
@@ -51,6 +53,57 @@ func newHandler(
 			writer,
 			request,
 			nodes,
+		)
+	})
+
+	mux.HandleFunc("/settings", func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		switch request.Method {
+		case http.MethodGet, http.MethodHead:
+		default:
+			writer.Header().Set("Allow", "GET, HEAD")
+			http.Error(
+				writer,
+				"Method not allowed.",
+				http.StatusMethodNotAllowed,
+			)
+			return
+		}
+
+		if alerts == nil {
+			managementUnavailable(writer)
+			return
+		}
+
+		if request.Method == http.MethodHead {
+			writer.Header().Set(
+				"Content-Type",
+				"text/html; charset=utf-8",
+			)
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
+
+		settings, err := alerts.SettingsRead(request.Context())
+		if err != nil {
+			managementUnavailable(writer)
+			return
+		}
+
+		writer.Header().Set(
+			"Content-Type",
+			"text/html; charset=utf-8",
+		)
+		writer.WriteHeader(http.StatusOK)
+
+		_ = settingsTemplate.Execute(
+			writer,
+			pageData{
+				BasePath: requestBasePath(request),
+				Settings: &settings,
+			},
 		)
 	})
 
@@ -401,6 +454,7 @@ type pageData struct {
 	Modal       *localcontrol.EntryResult
 	DeleteModal *localcontrol.EntryResult
 	NewModal    bool
+	Settings    *appconfig.Config
 }
 
 var landingTemplate = template.Must(
@@ -781,7 +835,7 @@ var landingTemplate = template.Must(
 <div id="panel">
 
 	<div id="select">
-		<div>
+		<div class="aamm-rail">
 			<a
 				title="Back to AREDN status"
 				href="/a/status"
@@ -802,6 +856,18 @@ var landingTemplate = template.Must(
 					alt=""
 				>
 			</a>
+
+                        <a
+                                class="aamm-rail-link aamm-settings-link"
+                                title="AAMM-NG settings"
+                                aria-label="AAMM-NG settings"
+                                href="{{.BasePath}}/settings"
+                        >
+                                <span
+                                        class="aamm-settings-icon"
+                                        aria-hidden="true"
+                                >&#9881;</span>
+                        </a>
 		</div>
 	</div>
 
@@ -918,6 +984,140 @@ var landingTemplate = template.Must(
 					</div>
 				</div>
 				{{end}}
+
+			</div>
+		</div>
+	</div>
+
+</div>
+</div>
+</body>
+</html>
+`),
+)
+
+var settingsTemplate = template.Must(
+	template.New("settings").Parse(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AAMM-NG Settings</title>
+
+<link rel="stylesheet" href="/a/css/theme.css">
+<link rel="stylesheet" href="/a/css/user.css">
+<link rel="stylesheet" href="/a/css/admin.css">
+<link rel="stylesheet" href="/apps/AAMM-NG/aamm-ng.css">
+
+<link rel="icon" type="image/svg+xml" href="/apps/AAMM-NG/icon.svg">
+</head>
+
+<body class="authenticated">
+
+<div id="page">
+
+<div id="nav">
+	<a
+		class="aamm-brand-icon"
+		href="{{.BasePath}}/"
+		title="AAMM-NG dashboard"
+	>
+		<img src="/apps/AAMM-NG/icon.svg" alt="">
+	</a>
+
+	<a class="nav-node-name" href="{{.BasePath}}/">
+		AAMM-NG
+	</a>
+
+	<div id="nav-status">
+		Next Generation Alert Manager
+	</div>
+
+	<div class="aamm-nav-spacer"></div>
+
+	<a class="aamm-back-link" href="/a/status">
+		Back to AREDN Status
+	</a>
+</div>
+
+<div id="panel">
+
+	<div id="select">
+		<div class="aamm-rail">
+			<a
+				title="Back to AREDN status"
+				href="/a/status"
+			>
+				<div class="icon status"></div>
+			</a>
+
+			<hr>
+
+			<a
+				class="aamm-rail-link"
+				title="AAMM-NG alerts"
+				href="{{.BasePath}}/"
+			>
+				<img
+					class="aamm-rail-icon"
+					src="/apps/AAMM-NG/icon.svg"
+					alt=""
+				>
+			</a>
+
+			<a
+				class="aamm-rail-link aamm-settings-link"
+				title="AAMM-NG settings"
+				aria-label="AAMM-NG settings"
+				href="{{.BasePath}}/settings"
+			>
+				<span
+					class="aamm-settings-icon"
+					aria-hidden="true"
+				>&#9881;</span>
+			</a>
+		</div>
+	</div>
+
+	<div id="main">
+		<div id="main-container">
+			<div class="aamm-dashboard">
+
+				<div class="aamm-page-header">
+					<div>
+						<div class="aamm-page-title">
+							AAMM-NG Settings
+						</div>
+
+						<div class="aamm-page-subtitle">
+							Application configuration for this node.
+						</div>
+					</div>
+				</div>
+
+				<div class="section">
+					<div class="section-title">
+						Application settings
+					</div>
+
+					<div class="aamm-settings-list">
+						<div class="aamm-setting-row">
+							<div>
+								<div class="t">
+									Configuration schema
+								</div>
+
+								<div class="s">
+									Stored application configuration format.
+								</div>
+							</div>
+
+							<div class="aamm-setting-value">
+								Version {{.Settings.Version}}
+							</div>
+						</div>
+					</div>
+				</div>
 
 			</div>
 		</div>

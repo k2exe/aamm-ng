@@ -194,3 +194,28 @@ func TestDeleteModalUsesAREDNBasePath(t *testing.T) {
 		}
 	}
 }
+
+func TestLandingTemplateSettingsLinkUsesAREDNBasePath(t *testing.T) {
+	var output bytes.Buffer
+
+	err := landingTemplate.Execute(
+		&output,
+		pageData{
+			BasePath: arednAppBasePath,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `href="` +
+		arednAppBasePath +
+		`/settings"`
+
+	if !strings.Contains(output.String(), want) {
+		t.Fatalf(
+			"landing output missing settings link %q",
+			want,
+		)
+	}
+}

@@ -11,12 +11,14 @@ import (
 	"syscall"
 
 	"github.com/k2exe/aamm-ng/internal/alertstore"
+	"github.com/k2exe/aamm-ng/internal/appconfig"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
 type config struct {
 	alertRoot  string
 	backupRoot string
+	configPath string
 }
 
 func main() {
@@ -69,6 +71,14 @@ func runWithSocketPath(
 		return err
 	}
 
+	settings, err := appconfig.OpenManager(config.configPath)
+	if err != nil {
+		return fmt.Errorf(
+			"startup: application configuration: %w",
+			err,
+		)
+	}
+
 	store, err := alertstore.Open(alertstore.Config{
 		AlertRoot:  config.alertRoot,
 		BackupRoot: config.backupRoot,
@@ -81,10 +91,11 @@ func runWithSocketPath(
 	serverErr := make(chan error, 1)
 
 	go func() {
-		serverErr <- localcontrol.Serve(
+		serverErr <- localcontrol.ServeWithSettings(
 			ctx,
 			socketPath,
 			store,
+			settings,
 			ready,
 		)
 	}()
@@ -163,6 +174,13 @@ func parseConfig(
 		"path to the backup directory",
 	)
 
+	flags.StringVar(
+		&config.configPath,
+		"config-path",
+		"",
+		"path to the application configuration file",
+	)
+
 	if err := flags.Parse(args); err != nil {
 		return config, err
 	}
@@ -173,6 +191,10 @@ func parseConfig(
 
 	if config.backupRoot == "" {
 		return config, errors.New("--backup-root is required")
+	}
+
+	if config.configPath == "" {
+		return config, errors.New("--config-path is required")
 	}
 
 	if flags.NArg() != 0 {

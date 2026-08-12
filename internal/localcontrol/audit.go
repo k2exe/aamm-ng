@@ -118,7 +118,8 @@ func isMutation(operation Operation) bool {
 	case OperationCreate,
 		OperationWrite,
 		OperationConvert,
-		OperationDelete:
+		OperationDelete,
+		OperationSettingsReplace:
 		return true
 
 	default:
