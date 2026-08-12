@@ -62,7 +62,7 @@ func TestClientReadManagedAlert(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":true,"result":`+
+			`{"version":2,"ok":true,"result":`+
 				`{"target":"all","kind":"managed",`+
 				`"message":"Net open","size":8}}`+"\n",
 		)
@@ -157,7 +157,7 @@ func TestClientReadCanRetrieveLegacySource(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":true,"result":`+
+			`{"version":2,"ok":true,"result":`+
 				`{"target":"legacy","kind":"legacy",`+
 				`"legacy_source":"<b>Old alert</b>",`+
 				`"size":16}}`+"\n",
@@ -230,7 +230,7 @@ func TestClientReadReturnsRemoteError(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":false,"error":`+
+			`{"version":2,"ok":false,"error":`+
 				`{"code":"not_found","message":"not found"}}`+"\n",
 		)
 

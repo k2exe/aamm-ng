@@ -2,7 +2,6 @@ package localcontrol
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -46,6 +45,14 @@ func TestClientDeleteSendsCanonicalRequest(t *testing.T) {
 			return
 		}
 
+		if err := validateTestRequestAudit(
+			request,
+			testRequiredMutationAudit(),
+		); err != nil {
+			serverErr <- err
+			return
+		}
+
 		if request.Operation != OperationDelete {
 			serverErr <- errors.New(
 				"unexpected operation",
@@ -69,7 +76,7 @@ func TestClientDeleteSendsCanonicalRequest(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":true,"result":`+
+			`{"version":2,"ok":true,"result":`+
 				`{"target":"all",`+
 				`"backup_name":"all.txt.20260807T010203Z.bak"}}`+
 				"\n",
@@ -83,7 +90,7 @@ func TestClientDeleteSendsCanonicalRequest(t *testing.T) {
 	}
 
 	result, err := client.Delete(
-		context.Background(),
+		testMutationContext(),
 		"ALL",
 	)
 	if err != nil {
@@ -118,7 +125,7 @@ func TestClientDeleteRejectsInvalidTargetBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := client.Delete(
-		context.Background(),
+		testMutationContext(),
 		"../all",
 	)
 
@@ -167,7 +174,7 @@ func TestClientDeleteReturnsRemoteNotFound(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":false,"error":`+
+			`{"version":2,"ok":false,"error":`+
 				`{"code":"not_found",`+
 				`"message":"alert not found"}}`+
 				"\n",
@@ -181,7 +188,7 @@ func TestClientDeleteReturnsRemoteNotFound(t *testing.T) {
 	}
 
 	_, err = client.Delete(
-		context.Background(),
+		testMutationContext(),
 		"missing",
 	)
 

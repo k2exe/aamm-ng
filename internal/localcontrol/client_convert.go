@@ -29,6 +29,11 @@ func (client *Client) Convert(
 		)
 	}
 
+	audit, err := client.mutationAuditFromContext(ctx)
+	if err != nil {
+		return ConvertResult{}, err
+	}
+
 	response, err := client.Call(
 		ctx,
 		Request{
@@ -36,6 +41,7 @@ func (client *Client) Convert(
 			Operation: OperationConvert,
 			Target:    parsedTarget.String(),
 			Message:   parsedMessage.String(),
+			Audit:     &audit,
 		},
 	)
 	if err != nil {

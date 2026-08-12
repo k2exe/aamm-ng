@@ -135,7 +135,7 @@ func TestOpenRequiresPrivateBackupPermissions(t *testing.T) {
 
 func TestReadManagedAlert(t *testing.T) {
 	directory := t.TempDir()
-	target := mustTarget(t, "K2EXE-HAP-RB")
+	target := mustTarget(t, "TEST-NODE-A")
 	message := mustMessage(t, "Line one\nLine two")
 
 	writeAlert(t, directory, target.Filename(), []byte(message.EscapedHTML()))
@@ -290,7 +290,7 @@ func TestReadAfterClose(t *testing.T) {
 
 func TestWriteCreatesManagedAlert(t *testing.T) {
 	directory := t.TempDir()
-	target := mustTarget(t, "K2EXE-HAP-RB")
+	target := mustTarget(t, "TEST-NODE-A")
 	message := mustMessage(t, "Net open at 19:00\nUse <primary> channel")
 
 	store := mustOpen(t, directory)

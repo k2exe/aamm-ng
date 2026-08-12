@@ -2,7 +2,6 @@ package localcontrol
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -46,6 +45,14 @@ func TestClientWriteSendsCanonicalRequest(t *testing.T) {
 			return
 		}
 
+		if err := validateTestRequestAudit(
+			request,
+			testRequiredMutationAudit(),
+		); err != nil {
+			serverErr <- err
+			return
+		}
+
 		if request.Operation != OperationWrite {
 			serverErr <- errors.New(
 				"unexpected operation",
@@ -69,7 +76,7 @@ func TestClientWriteSendsCanonicalRequest(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":true,"result":`+
+			`{"version":2,"ok":true,"result":`+
 				`{"target":"all","kind":"managed"}}`+"\n",
 		)
 
@@ -81,7 +88,7 @@ func TestClientWriteSendsCanonicalRequest(t *testing.T) {
 	}
 
 	result, err := client.Write(
-		context.Background(),
+		testMutationContext(),
 		"ALL",
 		"Line one\r\nLine two",
 	)
@@ -120,7 +127,7 @@ func TestClientWriteRejectsInvalidTargetBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := client.Write(
-		context.Background(),
+		testMutationContext(),
 		"../etc/passwd",
 		"Net open",
 	)
@@ -151,7 +158,7 @@ func TestClientWriteRejectsInvalidMessageBeforeConnecting(t *testing.T) {
 	for name, message := range tests {
 		t.Run(name, func(t *testing.T) {
 			_, err := client.Write(
-				context.Background(),
+				testMutationContext(),
 				"all",
 				message,
 			)
@@ -203,7 +210,7 @@ func TestClientWriteReturnsRemoteConflict(t *testing.T) {
 
 		_, err = io.WriteString(
 			connection,
-			`{"version":1,"ok":false,"error":`+
+			`{"version":2,"ok":false,"error":`+
 				`{"code":"legacy_conflict",`+
 				`"message":"legacy alert requires conversion"}}`+"\n",
 		)
@@ -216,7 +223,7 @@ func TestClientWriteReturnsRemoteConflict(t *testing.T) {
 	}
 
 	_, err = client.Write(
-		context.Background(),
+		testMutationContext(),
 		"all",
 		"Replacement",
 	)

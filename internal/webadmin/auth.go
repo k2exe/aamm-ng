@@ -3,12 +3,15 @@ package webadmin
 import (
 	"context"
 	"net/http"
+	"net/netip"
+	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/arednauth"
+	"github.com/k2exe/aamm-ng/internal/auditidentity"
 )
 
 type SessionVerifier interface {
-	Verify(context.Context, string) (bool, error)
+	VerifySession(context.Context, string) (arednauth.Session, error)
 }
 
 func RequireAdmin(
@@ -26,7 +29,7 @@ func RequireAdmin(
 			return
 		}
 
-		authenticated, err := verifier.Verify(
+		session, err := verifier.VerifySession(
 			request.Context(),
 			arednauth.AuthV1FromRequest(request),
 		)
@@ -35,13 +38,62 @@ func RequireAdmin(
 			return
 		}
 
-		if !authenticated {
+		if !session.Authenticated {
 			unauthorized(writer)
 			return
 		}
 
-		next.ServeHTTP(writer, request)
+		if strings.TrimSpace(session.Name) == "" {
+			serviceUnavailable(writer)
+			return
+		}
+
+		sourceIP, ok := trustedSourceIP(request)
+		if !ok {
+			serviceUnavailable(writer)
+			return
+		}
+
+		ctx := auditidentity.WithIdentity(
+			request.Context(),
+			auditidentity.Identity{
+				Name:     session.Name,
+				SourceIP: sourceIP,
+			},
+		)
+
+		nextRequest := request.WithContext(ctx)
+		nextRequest.Header = request.Header.Clone()
+		nextRequest.Header.Del(auditidentity.SourceIPHeader)
+
+		next.ServeHTTP(
+			writer,
+			nextRequest,
+		)
 	})
+}
+
+// trustedSourceIP accepts an internal header from the CGI bridge.
+//
+// This header is trusted only because the production web service listens
+// on loopback and the CGI bridge replaces the value with validated
+// CGI REMOTE_ADDR data. Do not expose the web service directly to the
+// mesh or another network while this trust model is in use.
+//
+// See docs/audit-trust-boundary.md.
+func trustedSourceIP(request *http.Request) (string, bool) {
+	if request == nil {
+		return "", false
+	}
+
+	address, err := netip.ParseAddr(
+		request.Header.Get(auditidentity.SourceIPHeader),
+	)
+	if err != nil {
+		return "", false
+	}
+
+	return address.Unmap().String(), true
 }
 
 func setAuthResponseHeaders(writer http.ResponseWriter) {

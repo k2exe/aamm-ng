@@ -2,6 +2,7 @@ package localcontrol
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -11,35 +12,40 @@ func TestDecodeRequestAcceptsOperations(t *testing.T) {
 		name      string
 		input     string
 		operation Operation
+		authNode  string
 	}{
 		{
 			name:      "list",
-			input:     `{"version":1,"operation":"list"}`,
+			input:     `{"version":2,"operation":"list"}`,
 			operation: OperationList,
 		},
 		{
 			name:      "read",
-			input:     `{"version":1,"operation":"read","target":"all"}`,
+			input:     `{"version":2,"operation":"read","target":"all"}`,
 			operation: OperationRead,
 		},
 		{
 			name:      "create",
-			input:     `{"version":1,"operation":"create","target":"all","message":"Net open"}`,
+			input:     `{"version":2,"operation":"create","target":"all","message":"Net open","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}`,
+			authNode:  "TEST-NODE-A",
 			operation: OperationCreate,
 		},
 		{
 			name:      "write",
-			input:     `{"version":1,"operation":"write","target":"all","message":"Net open"}`,
+			input:     `{"version":2,"operation":"write","target":"all","message":"Net open","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}`,
+			authNode:  "TEST-NODE-A",
 			operation: OperationWrite,
 		},
 		{
 			name:      "convert",
-			input:     `{"version":1,"operation":"convert","target":"all","message":"Replacement"}`,
+			input:     `{"version":2,"operation":"convert","target":"all","message":"Replacement","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}`,
+			authNode:  "TEST-NODE-A",
 			operation: OperationConvert,
 		},
 		{
 			name:      "delete",
-			input:     `{"version":1,"operation":"delete","target":"all"}`,
+			input:     `{"version":2,"operation":"delete","target":"all","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}`,
+			authNode:  "TEST-NODE-A",
 			operation: OperationDelete,
 		},
 	}
@@ -56,6 +62,62 @@ func TestDecodeRequestAcceptsOperations(t *testing.T) {
 					"Operation = %q; want %q",
 					request.Operation,
 					test.operation,
+				)
+			}
+
+			if requestAuthNode(request) != test.authNode {
+				t.Fatalf(
+					"AuthNode = %q; want %q",
+					requestAuthNode(request),
+					test.authNode,
+				)
+			}
+		})
+	}
+}
+
+func TestDecodeRequestRequiresAuditForMutations(t *testing.T) {
+	tests := []string{
+		`{"version":2,"operation":"create","target":"all","message":"Net open"}`,
+		`{"version":2,"operation":"write","target":"all","message":"Net open"}`,
+		`{"version":2,"operation":"convert","target":"all","message":"Replacement"}`,
+		`{"version":2,"operation":"delete","target":"all"}`,
+	}
+
+	for _, input := range tests {
+		t.Run(input, func(t *testing.T) {
+			_, err := DecodeRequest([]byte(input))
+			if !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf(
+					"DecodeRequest() error = %v; want ErrInvalidRequest",
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestDecodeRequestRejectsUnsafeAuthNode(t *testing.T) {
+	tests := []string{
+		"",
+		" TEST-NODE-A",
+		"TEST-NODE-A ",
+		"TEST-NODE-A\nforged",
+		"TEST-NODE-A\u202Eevil",
+		strings.Repeat("x", MaxAuthNodeBytes+1),
+	}
+
+	for _, authNode := range tests {
+		t.Run(authNode, func(t *testing.T) {
+			input := `{"version":2,"operation":"delete","target":"all","audit":{"auth_node":` +
+				strconv.Quote(authNode) +
+				`,"auth_role":"admin","source_ip":"192.0.2.44"}}`
+
+			_, err := DecodeRequest([]byte(input))
+			if !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf(
+					"DecodeRequest() error = %v; want ErrInvalidRequest",
+					err,
 				)
 			}
 		})
@@ -76,7 +138,7 @@ func TestDecodeRequestRejectsOversizedInput(t *testing.T) {
 
 func TestDecodeRequestRejectsUnsupportedVersion(t *testing.T) {
 	_, err := DecodeRequest(
-		[]byte(`{"version":2,"operation":"list"}`),
+		[]byte(`{"version":1,"operation":"list"}`),
 	)
 
 	if !errors.Is(err, ErrUnsupportedVersion) {
@@ -89,7 +151,7 @@ func TestDecodeRequestRejectsUnsupportedVersion(t *testing.T) {
 
 func TestDecodeRequestRejectsUnknownOperation(t *testing.T) {
 	_, err := DecodeRequest(
-		[]byte(`{"version":1,"operation":"shell"}`),
+		[]byte(`{"version":2,"operation":"shell"}`),
 	)
 
 	if !errors.Is(err, ErrUnknownOperation) {
@@ -102,7 +164,7 @@ func TestDecodeRequestRejectsUnknownOperation(t *testing.T) {
 
 func TestDecodeRequestRejectsUnknownField(t *testing.T) {
 	_, err := DecodeRequest(
-		[]byte(`{"version":1,"operation":"list","path":"/etc"}`),
+		[]byte(`{"version":2,"operation":"list","path":"/etc"}`),
 	)
 
 	if !errors.Is(err, ErrInvalidRequest) {
@@ -116,7 +178,7 @@ func TestDecodeRequestRejectsUnknownField(t *testing.T) {
 func TestDecodeRequestRejectsMultipleValues(t *testing.T) {
 	_, err := DecodeRequest(
 		[]byte(
-			`{"version":1,"operation":"list"} {"version":1,"operation":"list"}`,
+			`{"version":2,"operation":"list"} {"version":2,"operation":"list"}`,
 		),
 	)
 
@@ -137,7 +199,7 @@ func TestDecodeRequestRequiresTarget(t *testing.T) {
 		OperationDelete,
 	} {
 		t.Run(string(operation), func(t *testing.T) {
-			input := `{"version":1,"operation":"` +
+			input := `{"version":2,"operation":"` +
 				string(operation) +
 				`","message":"message"}`
 
@@ -160,7 +222,7 @@ func TestDecodeRequestRequiresWriteMessage(t *testing.T) {
 		OperationConvert,
 	} {
 		t.Run(string(operation), func(t *testing.T) {
-			input := `{"version":1,"operation":"` +
+			input := `{"version":2,"operation":"` +
 				string(operation) +
 				`","target":"all"}`
 
@@ -173,6 +235,36 @@ func TestDecodeRequestRequiresWriteMessage(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestDecodeRequestReturnsParsedMutationOnValidationError(
+	t *testing.T,
+) {
+	request, err := DecodeRequest([]byte(
+		`{"version":2,"operation":"write","target":"all","message":"test"}`,
+	))
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf(
+			"DecodeRequest() error = %v; want ErrInvalidRequest",
+			err,
+		)
+	}
+
+	if request.Operation != OperationWrite {
+		t.Fatalf(
+			"Operation = %q; want %q",
+			request.Operation,
+			OperationWrite,
+		)
+	}
+
+	if request.Target != "all" {
+		t.Fatalf(
+			"Target = %q; want all",
+			request.Target,
+		)
 	}
 }
 
@@ -190,4 +282,100 @@ func TestResponseConstructors(t *testing.T) {
 		failure.Error.Code != "invalid_target" {
 		t.Fatalf("Failure() = %#v", failure)
 	}
+}
+
+func TestValidateMutationAuditAcceptsCompleteAttribution(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode:   "TEST-NODE-A",
+			AuthRole:   "admin",
+			SourceIP:   "192.0.2.44",
+			SourceNode: "TEST-NODE-B",
+			SourceHost: "test-workstation",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("validateMutationAudit() error = %v", err)
+	}
+}
+
+func TestValidateMutationAuditAcceptsRequiredFieldsOnly(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode: "TEST-NODE-A",
+			AuthRole: "admin",
+			SourceIP: "192.0.2.44",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("validateMutationAudit() error = %v", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsInvalidRole(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode: "TEST-NODE-A",
+			AuthRole: "operator",
+			SourceIP: "192.0.2.44",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsNonCanonicalSourceAddress(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode: "TEST-NODE-A",
+			AuthRole: "admin",
+			SourceIP: "::ffff:192.0.2.44",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsHostWithoutNode(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode:   "TEST-NODE-A",
+			AuthRole:   "admin",
+			SourceIP:   "192.0.2.44",
+			SourceHost: "test-workstation",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}
+
+func TestValidateMutationAuditRejectsUnsafeNodeName(t *testing.T) {
+	err := validateMutationAudit(
+		MutationAudit{
+			AuthNode:   "TEST-NODE-A",
+			AuthRole:   "admin",
+			SourceIP:   "192.0.2.44",
+			SourceNode: "TEST-NODE-B\nforged",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v; want ErrInvalidRequest", err)
+	}
+}
+
+func requestAuthNode(request Request) string {
+	if request.Audit == nil {
+		return ""
+	}
+
+	return request.Audit.AuthNode
 }

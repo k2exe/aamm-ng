@@ -19,12 +19,18 @@ func (client *Client) Delete(
 		)
 	}
 
+	audit, err := client.mutationAuditFromContext(ctx)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+
 	response, err := client.Call(
 		ctx,
 		Request{
 			Version:   ProtocolVersion,
 			Operation: OperationDelete,
 			Target:    parsedTarget.String(),
+			Audit:     &audit,
 		},
 	)
 	if err != nil {

@@ -39,7 +39,7 @@ func TestServeListRoundTrip(t *testing.T) {
 	defer connection.Close()
 
 	_, err = connection.Write(
-		[]byte(`{"version":1,"operation":"list"}` + "\n"),
+		[]byte(`{"version":2,"operation":"list"}` + "\n"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -158,6 +158,109 @@ func TestServeDoesNotRemoveExistingPath(t *testing.T) {
 	}
 }
 
+func TestServeRemovesStaleSocket(t *testing.T) {
+	socketPath := testSocketPath(t)
+
+	staleListener, err := net.ListenUnix(
+		"unix",
+		&net.UnixAddr{
+			Name: socketPath,
+			Net:  "unix",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	staleListener.SetUnlinkOnClose(false)
+
+	if err := staleListener.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Lstat(socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Mode()&os.ModeSocket == 0 {
+		t.Fatal("stale path is not a Unix socket")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	ready := make(chan struct{})
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- Serve(
+			ctx,
+			socketPath,
+			&fakeStore{},
+			ready,
+		)
+	}()
+
+	select {
+	case <-ready:
+	case err := <-errCh:
+		t.Fatalf(
+			"Serve() exited before recovering stale socket: %v",
+			err,
+		)
+	case <-time.After(time.Second):
+		t.Fatal("Serve() did not recover stale socket")
+	}
+
+	cancel()
+
+	if err := <-errCh; err != nil {
+		t.Fatalf("Serve() error = %v", err)
+	}
+}
+
+func TestServeDoesNotRemoveActiveSocket(t *testing.T) {
+	socketPath := testSocketPath(t)
+
+	activeListener, err := net.ListenUnix(
+		"unix",
+		&net.UnixAddr{
+			Name: socketPath,
+			Net:  "unix",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer activeListener.Close()
+
+	err = Serve(
+		context.Background(),
+		socketPath,
+		&fakeStore{},
+		nil,
+	)
+
+	if !errors.Is(err, ErrSocketPathExists) {
+		t.Fatalf(
+			"Serve() error = %v; want ErrSocketPathExists",
+			err,
+		)
+	}
+
+	info, err := os.Lstat(socketPath)
+	if err != nil {
+		t.Fatalf(
+			"active socket was removed: %v",
+			err,
+		)
+	}
+
+	if info.Mode()&os.ModeSocket == 0 {
+		t.Fatal("active socket path was replaced")
+	}
+}
+
 func TestServeRejectsRequestWithoutNewline(t *testing.T) {
 	socketPath := testSocketPath(t)
 
@@ -190,7 +293,7 @@ func TestServeRejectsRequestWithoutNewline(t *testing.T) {
 	}
 
 	_, err = connection.Write(
-		[]byte(`{"version":1,"operation":"list"}`),
+		[]byte(`{"version":2,"operation":"list"}`),
 	)
 	if err != nil {
 		t.Fatal(err)

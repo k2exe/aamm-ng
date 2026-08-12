@@ -29,6 +29,11 @@ func (client *Client) Create(
 		)
 	}
 
+	audit, err := client.mutationAuditFromContext(ctx)
+	if err != nil {
+		return CreateResult{}, err
+	}
+
 	response, err := client.Call(
 		ctx,
 		Request{
@@ -36,6 +41,7 @@ func (client *Client) Create(
 			Operation: OperationCreate,
 			Target:    parsedTarget.String(),
 			Message:   parsedMessage.String(),
+			Audit:     &audit,
 		},
 	)
 	if err != nil {

@@ -76,6 +76,11 @@ func TestParseRejectsInvalidMessages(t *testing.T) {
 			input:    "hello\u0085world",
 			expected: ErrControlCharacter,
 		},
+		{
+			name:     "Unicode format",
+			input:    "hello\u200bworld",
+			expected: ErrControlCharacter,
+		},
 	}
 
 	for _, test := range tests {

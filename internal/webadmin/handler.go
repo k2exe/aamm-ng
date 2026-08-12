@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/alerttarget"
+	"github.com/k2exe/aamm-ng/internal/arednnodes"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
 
@@ -20,11 +21,38 @@ type AlertManager interface {
 	Delete(context.Context, string) (localcontrol.DeleteResult, error)
 }
 
+type nodeFinder interface {
+	LocalNodes(context.Context) ([]string, error)
+}
+
 func NewHandler(
 	verifier SessionVerifier,
 	alerts AlertManager,
 ) http.Handler {
+	return newHandler(
+		verifier,
+		alerts,
+		arednnodes.NewFetcher(),
+	)
+}
+
+func newHandler(
+	verifier SessionVerifier,
+	alerts AlertManager,
+	nodes nodeFinder,
+) http.Handler {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/local-nodes", func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		handleLocalNodes(
+			writer,
+			request,
+			nodes,
+		)
+	})
 
 	mux.HandleFunc("/", func(
 		writer http.ResponseWriter,
@@ -415,23 +443,53 @@ var landingTemplate = template.Must(
 			>
 				<div class="o">Target</div>
 
-				<input
-					class="aamm-create-target"
-					id="target"
-					name="target"
-					type="text"
-					autocomplete="off"
-					autofocus
-					maxlength="63"
-					pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}"
-					placeholder="all or node-name"
-					required
+				<div
+					class="aamm-target-picker"
+					data-aamm-node-endpoint="{{.BasePath}}/api/local-nodes"
 				>
+					<input
+						class="aamm-create-target"
+						id="target"
+						name="target"
+						type="text"
+						autocomplete="off"
+						autofocus
+						maxlength="63"
+						pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}"
+						placeholder="all or node-name"
+						required
+					>
+
+					<button
+						type="button"
+						data-aamm-find-node
+						aria-controls="aamm-node-results"
+						aria-expanded="false"
+					>
+						Find node
+					</button>
+
+					<div
+						id="aamm-node-results"
+						class="aamm-node-results"
+						data-aamm-node-results
+						role="group"
+						aria-label="Local AREDN nodes"
+						hidden
+					></div>
+				</div>
 
 				<div class="m">
-					Use <strong>all</strong> for all nodes, or enter a node target.
+					Use <strong>all</strong> for all nodes, enter a node target,
+					or use <strong>Find node</strong> to search the local AREDN mesh.
 					Letters, numbers, hyphen, and underscore are supported.
 				</div>
+
+				<div
+					class="m aamm-node-status"
+					data-aamm-node-status
+					aria-live="polite"
+				></div>
 
 				<div class="o">Message</div>
 
@@ -569,12 +627,14 @@ var landingTemplate = template.Must(
 			<hr>
 
 			<div class="aamm-modal-actions">
+				{{if ne .Kind "oversized"}}
 				<a
 					class="aamm-delete-link"
 					href="{{$.BasePath}}/alerts/{{.Target}}/delete"
 				>
 					Delete alert
 				</a>
+				{{end}}
 
 				<button type="button" data-aamm-close>
 					Cancel

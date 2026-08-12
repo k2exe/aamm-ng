@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=aamm-ng
-PKG_VERSION:=0.1.0
-PKG_RELEASE:=11
+PKG_VERSION:=0.1.2
+PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/k2exe/aamm-ng.git
-PKG_SOURCE_VERSION:=71a59961777729d77a4b09aa8a77eeb7d3573fd9
+PKG_SOURCE_VERSION:=87278a1a99fa079318ffc42a4ce6d6f03bffd458
 PKG_MIRROR_HASH:=skip
 
 PKG_LICENSE:=Apache-2.0
@@ -14,6 +14,7 @@ PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=K2EXE
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=no-mips16
 
 GO_PKG:=github.com/k2exe/aamm-ng
 GO_PKG_BUILD_PKG:= \
@@ -33,8 +34,9 @@ define Package/aamm-ng
 endef
 
 define Package/aamm-ng/description
- AAMM-NG provides authenticated management of AREDN alert messages
- using a privileged local daemon and separate unprivileged web service.
+ AAMM-NG gives AREDN operators a web interface to discover mesh nodes
+ and create, edit, and remove targeted alert messages with authenticated
+ audit tracking.
 endef
 
 define Package/aamm-ng/install

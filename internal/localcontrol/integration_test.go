@@ -74,7 +74,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	listResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"list"}`,
+		`{"version":2,"operation":"list"}`,
 	)
 
 	if !listResponse.OK {
@@ -87,7 +87,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	writeResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"write","target":"all","message":"Net open"}`,
+		`{"version":2,"operation":"write","target":"all","message":"Net open","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}`,
 	)
 
 	requireSuccessResult(
@@ -100,7 +100,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	readResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"read","target":"all"}`,
+		`{"version":2,"operation":"read","target":"all"}`,
 	)
 
 	readResult := resultObject(t, readResponse)
@@ -115,7 +115,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	convertResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"convert","target":"legacy","message":"Converted"}`,
+		`{"version":2,"operation":"convert","target":"legacy","message":"Converted","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}`,
 	)
 
 	convertResult := resultObject(t, convertResponse)
@@ -145,7 +145,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	convertedRead := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"read","target":"legacy"}`,
+		`{"version":2,"operation":"read","target":"legacy"}`,
 	)
 
 	convertedResult := resultObject(t, convertedRead)
@@ -160,7 +160,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	deleteResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"delete","target":"all"}`,
+		`{"version":2,"operation":"delete","target":"all","audit":{"auth_node":"TEST-NODE-A","auth_role":"admin","source_ip":"192.0.2.44"}}`,
 	)
 
 	deleteResult := resultObject(t, deleteResponse)
@@ -176,7 +176,7 @@ func TestServeRealStoreLifecycle(t *testing.T) {
 	missingResponse := controlRoundTrip(
 		t,
 		socketPath,
-		`{"version":1,"operation":"read","target":"all"}`,
+		`{"version":2,"operation":"read","target":"all"}`,
 	)
 
 	requireErrorCode(
