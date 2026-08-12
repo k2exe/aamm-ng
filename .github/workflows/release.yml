@@ -63,16 +63,17 @@ jobs:
           echo "AREDN:   ${AREDN_REF}"
 
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
               echo "invalid release tag: $GITHUB_REF_NAME" >&2
               exit 1
             fi
 
             tag_version="${GITHUB_REF_NAME#v}"
+            package_tag_version="${tag_version%%-*}"
 
-            if [[ "$tag_version" != "$version" ]]; then
+            if [[ "$package_tag_version" != "$version" ]]; then
               echo \
-                "tag version ${tag_version} does not match package version ${version}" \
+                "tag package version ${package_tag_version} does not match package version ${version}" \
                 >&2
               exit 1
             fi
@@ -400,6 +401,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          release_args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            release_args+=(--prerelease)
+          fi
+
           gh release create \
             "$GITHUB_REF_NAME" \
             dist/*.apk \
@@ -407,4 +413,5 @@ jobs:
             dist/BUILD-INFO.txt \
             --verify-tag \
             --generate-notes \
-            --title "AAMM-NG ${GITHUB_REF_NAME}"
+            --title "AAMM-NG ${GITHUB_REF_NAME}" \
+            "${release_args[@]}"
