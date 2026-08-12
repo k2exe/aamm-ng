@@ -129,12 +129,16 @@ Select Fetch and Update.
 
 Wait for AREDN to report that installation completed successfully.
 
+![AREDN package upload controls](docs/images/readme/install-package.png)
+
 ## Open AAMM-NG
 
 AAMM-NG installs as an application on the AREDN node.
 
 Open AAMM-NG from the node interface while you are logged in as the
 node administrator.
+
+![AAMM-NG application link in the AREDN interface](docs/images/readme/open-aamm-ng.png)
 
 You can also use the direct application path:
 
@@ -196,6 +200,8 @@ The Current Alerts section shows alert files on the publisher node.
 
 Select an alert to view or manage it.
 
+![AAMM-NG dashboard](docs/images/readme/aamm-ng-dashboard.png)
+
 ### Create an alert
 
 Select + New Alert.
@@ -216,6 +222,8 @@ You can also select Find node.
 
 Find node searches local AREDN mesh information and shows available
 node targets.
+
+![Create Alert with Find node results](docs/images/readme/create-alert-find-node.png)
 
 Enter the alert message.
 
