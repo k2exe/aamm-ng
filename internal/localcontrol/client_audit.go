@@ -10,6 +10,8 @@ import (
 	"github.com/k2exe/aamm-ng/internal/auditidentity"
 )
 
+// sourceAttribution returns advisory mesh-derived display metadata.
+// SourceNode and SourceHost are not authentication or authorization data.
 func (client *Client) sourceAttribution(
 	ctx context.Context,
 	sourceIP string,
