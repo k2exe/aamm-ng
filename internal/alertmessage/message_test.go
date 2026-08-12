@@ -13,6 +13,13 @@ func TestParseValidMessages(t *testing.T) {
 		"Line one\rLine two":          "Line one\nLine two",
 		"Temperature: 21 °C":          "Temperature: 21 °C",
 		"Column one\tColumn two":      "Column one\tColumn two",
+		"Weather alert ⚠️":            "Weather alert ⚠️",
+		"Operator 👋🏽":                 "Operator 👋🏽",
+		"SKYWARN 👨‍🚒 active":          "SKYWARN 👨‍🚒 active",
+		"Firefighter 👨🏽‍🚒":            "Firefighter 👨🏽‍🚒",
+		"Pride 🏳️‍🌈":                  "Pride 🏳️‍🌈",
+		"Family 👨‍👩‍👧‍👦":              "Family 👨‍👩‍👧‍👦",
+		"Café":                       "Café",
 		strings.Repeat("a", MaxBytes): strings.Repeat("a", MaxBytes),
 	}
 
@@ -27,6 +34,29 @@ func TestParseValidMessages(t *testing.T) {
 				t.Fatalf("Parse(%q) = %q; want %q", input, message, expected)
 			}
 		})
+	}
+}
+
+func TestParseEmojiByteLimit(t *testing.T) {
+	emoji := "⚠️"
+	prefix := strings.Repeat("a", MaxBytes-len(emoji))
+
+	message, err := Parse(prefix + emoji)
+	if err != nil {
+		t.Fatalf("Parse() at MaxBytes returned error: %v", err)
+	}
+
+	if len(message.String()) != MaxBytes {
+		t.Fatalf("message length = %d bytes; want %d", len(message.String()), MaxBytes)
+	}
+
+	message, err = Parse(prefix + emoji + "a")
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("Parse() above MaxBytes error = %v; want %v", err, ErrTooLarge)
+	}
+
+	if message != (Message{}) {
+		t.Fatalf("Parse() above MaxBytes returned nonzero message")
 	}
 }
 
@@ -77,9 +107,39 @@ func TestParseRejectsInvalidMessages(t *testing.T) {
 			expected: ErrControlCharacter,
 		},
 		{
-			name:     "Unicode format",
+			name:     "zero width space",
 			input:    "hello\u200bworld",
-			expected: ErrControlCharacter,
+			expected: ErrFormatCharacter,
+		},
+		{
+			name:     "right to left override",
+			input:    "hello\u202eworld",
+			expected: ErrFormatCharacter,
+		},
+		{
+			name:     "word joiner",
+			input:    "hello\u2060world",
+			expected: ErrFormatCharacter,
+		},
+		{
+			name:     "Unicode tag character",
+			input:    "hello\U000e0067world",
+			expected: ErrFormatCharacter,
+		},
+		{
+			name:     "ZWJ between ordinary letters",
+			input:    "hello\u200dworld",
+			expected: ErrFormatCharacter,
+		},
+		{
+			name:     "leading ZWJ",
+			input:    "\u200dhello",
+			expected: ErrFormatCharacter,
+		},
+		{
+			name:     "trailing ZWJ",
+			input:    "hello\u200d",
+			expected: ErrFormatCharacter,
 		},
 	}
 
@@ -131,6 +191,8 @@ func TestParseManagedHTML(t *testing.T) {
 		"&lt;b&gt;safe text&lt;/b&gt;": "<b>safe text</b>",
 		"Line one<br>\nLine two":       "Line one\nLine two",
 		"Temperature: 21 °C":           "Temperature: 21 °C",
+		"Weather ⚠️":                   "Weather ⚠️",
+		"SKYWARN 👨‍🚒 active":           "SKYWARN 👨‍🚒 active",
 	}
 
 	for stored, expected := range tests {
