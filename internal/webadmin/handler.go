@@ -627,12 +627,14 @@ var landingTemplate = template.Must(
 			<hr>
 
 			<div class="aamm-modal-actions">
+				{{if ne .Kind "oversized"}}
 				<a
 					class="aamm-delete-link"
 					href="{{$.BasePath}}/alerts/{{.Target}}/delete"
 				>
 					Delete alert
 				</a>
+				{{end}}
 
 				<button type="button" data-aamm-close>
 					Cancel

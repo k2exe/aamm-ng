@@ -163,10 +163,10 @@ func TestParseIgnoresIPv6SectionsAndEntries(t *testing.T) {
 
 func TestParseIgnoresMalformedEntries(t *testing.T) {
 	records := []string{
-		`##192.0.2.40##
+		`## 192.0.2.40 ##
 not-an-address TEST-BAD-ADDRESS
 192.0.2.41
-192.0.2.42 TOO MANY FIELDS
+192.0.2.42 TEST-DEVICE-WITH-ALIASES alias-one alias-two
 192.0.2.43 TEST-DEVICE
 `,
 	}
@@ -177,6 +177,10 @@ not-an-address TEST-BAD-ADDRESS
 		{
 			Originator: netip.MustParseAddr("192.0.2.40"),
 			Entries: []Entry{
+				{
+					Address: netip.MustParseAddr("192.0.2.42"),
+					Name:    "TEST-DEVICE-WITH-ALIASES",
+				},
 				{
 					Address: netip.MustParseAddr("192.0.2.43"),
 					Name:    "TEST-DEVICE",

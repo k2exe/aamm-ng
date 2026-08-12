@@ -27,6 +27,11 @@ func handleDeleteConfirmation(
 		return
 	}
 
+	if entry.Kind == "oversized" {
+		oversizedDeleteConflict(writer)
+		return
+	}
+
 	var listing localcontrol.ListResult
 
 	if request.Method == http.MethodGet {
@@ -150,9 +155,20 @@ func handleDeleteError(
 			http.StatusConflict,
 		)
 
+	case localcontrol.ErrorOversizedConflict:
+		oversizedDeleteConflict(writer)
+
 	default:
 		managementUnavailable(writer)
 	}
+}
+
+func oversizedDeleteConflict(writer http.ResponseWriter) {
+	http.Error(
+		writer,
+		"This alert is too large for a safe backup. AAMM-NG did not delete the alert.",
+		http.StatusConflict,
+	)
 }
 
 func invalidDeleteConfirmation(

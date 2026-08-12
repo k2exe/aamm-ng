@@ -50,7 +50,7 @@ func Parse(records []string) []Section {
 			}
 
 			fields := strings.Fields(line)
-			if len(fields) != 2 {
+			if len(fields) < 2 {
 				continue
 			}
 
@@ -82,6 +82,7 @@ func parseSectionHeader(line string) (netip.Addr, bool) {
 		strings.TrimPrefix(line, "##"),
 		"##",
 	)
+	value = strings.TrimSpace(value)
 
 	address, err := netip.ParseAddr(value)
 	if err != nil {

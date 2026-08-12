@@ -73,6 +73,14 @@ func RequireAdmin(
 	})
 }
 
+// trustedSourceIP accepts an internal header from the CGI bridge.
+//
+// This header is trusted only because the production web service listens
+// on loopback and the CGI bridge replaces the value with validated
+// CGI REMOTE_ADDR data. Do not expose the web service directly to the
+// mesh or another network while this trust model is in use.
+//
+// See docs/audit-trust-boundary.md.
 func trustedSourceIP(request *http.Request) (string, bool) {
 	if request == nil {
 		return "", false
