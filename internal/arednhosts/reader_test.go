@@ -59,6 +59,49 @@ func TestReaderReadsRegularFilesAndSkipsSymlinks(t *testing.T) {
 	}
 }
 
+func TestVerifyOpenedFileRejectsDifferentFile(t *testing.T) {
+	directory := t.TempDir()
+
+	expectedPath := filepath.Join(directory, "record-a")
+	openedPath := filepath.Join(directory, "record-b")
+
+	if err := os.WriteFile(
+		expectedPath,
+		[]byte("record-a"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(
+		openedPath,
+		[]byte("record-b"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	expected, err := os.Lstat(expectedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	file, err := os.Open(openedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	err = verifyOpenedFile(expected, file)
+
+	if !errors.Is(err, ErrRead) {
+		t.Fatalf(
+			"error = %v; want ErrRead",
+			err,
+		)
+	}
+}
+
 func TestReaderRejectsTooManyFiles(t *testing.T) {
 	directory := t.TempDir()
 

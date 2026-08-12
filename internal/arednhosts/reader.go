@@ -27,6 +27,29 @@ type reader struct {
 	maxTotalBytes int64
 }
 
+func verifyOpenedFile(
+	expected os.FileInfo,
+	file *os.File,
+) error {
+	openedInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf(
+			"%w: verify",
+			ErrRead,
+		)
+	}
+
+	if !openedInfo.Mode().IsRegular() ||
+		!os.SameFile(expected, openedInfo) {
+		return fmt.Errorf(
+			"%w: verify",
+			ErrRead,
+		)
+	}
+
+	return nil
+}
+
 func ReadLocal() ([]string, error) {
 	return defaultReader().read()
 }
@@ -102,6 +125,10 @@ func (r reader) read() ([]string, error) {
 			)
 		}
 
+		if err := verifyOpenedFile(info, file); err != nil {
+			_ = file.Close()
+			return nil, err
+		}
 		data, readErr := io.ReadAll(
 			io.LimitReader(
 				file,
