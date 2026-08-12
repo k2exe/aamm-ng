@@ -8,6 +8,8 @@ USE_PROCD=1
 PROG=/usr/sbin/aamm-ng
 ALERT_ROOT=/www/aam
 BACKUP_ROOT=/etc/aamm-ng/backups
+SETTINGS_ROOT=/etc/aamm-ng/settings
+CONFIG_PATH=$SETTINGS_ROOT/config.json
 RUNTIME_DIR=/run/aamm-ng
 
 prepare_directories() {
@@ -18,6 +20,10 @@ prepare_directories() {
 	mkdir -p "$BACKUP_ROOT" || return 1
 	chown aamm-ng:aamm-ng "$BACKUP_ROOT" || return 1
 	chmod 0700 "$BACKUP_ROOT" || return 1
+
+	mkdir -p "$SETTINGS_ROOT" || return 1
+	chown aamm-ng:aamm-ng "$SETTINGS_ROOT" || return 1
+	chmod 0700 "$SETTINGS_ROOT" || return 1
 
 	mkdir -p "$RUNTIME_DIR" || return 1
 	chown aamm-ng:aamm-ng-control "$RUNTIME_DIR" || return 1
@@ -31,7 +37,8 @@ start_service() {
 	procd_set_param command \
 		"$PROG" \
 		--alert-root "$ALERT_ROOT" \
-		--backup-root "$BACKUP_ROOT"
+		--backup-root "$BACKUP_ROOT" \
+		--config-path "$CONFIG_PATH"
 
 	procd_set_param user aamm-ng
 	procd_set_param group aamm-ng

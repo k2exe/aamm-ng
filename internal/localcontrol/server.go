@@ -44,10 +44,45 @@ func Serve(
 	)
 }
 
+func ServeWithSettings(
+	ctx context.Context,
+	socketPath string,
+	store Store,
+	settings SettingsStore,
+	ready chan<- struct{},
+) error {
+	return serveWithSettingsAuditWriter(
+		ctx,
+		socketPath,
+		store,
+		settings,
+		ready,
+		os.Stdout,
+	)
+}
+
 func serveWithAuditWriter(
 	ctx context.Context,
 	socketPath string,
 	store Store,
+	ready chan<- struct{},
+	auditWriter io.Writer,
+) error {
+	return serveWithSettingsAuditWriter(
+		ctx,
+		socketPath,
+		store,
+		nil,
+		ready,
+		auditWriter,
+	)
+}
+
+func serveWithSettingsAuditWriter(
+	ctx context.Context,
+	socketPath string,
+	store Store,
+	settings SettingsStore,
 	ready chan<- struct{},
 	auditWriter io.Writer,
 ) error {
@@ -107,9 +142,10 @@ func serveWithAuditWriter(
 			return fmt.Errorf("accept control connection: %w", err)
 		}
 
-		handleConnection(
+		handleConnectionWithSettings(
 			connection,
 			store,
+			settings,
 			auditWriter,
 		)
 	}
@@ -184,6 +220,20 @@ func handleConnection(
 	store Store,
 	auditWriter io.Writer,
 ) {
+	handleConnectionWithSettings(
+		connection,
+		store,
+		nil,
+		auditWriter,
+	)
+}
+
+func handleConnectionWithSettings(
+	connection *net.UnixConn,
+	store Store,
+	settings SettingsStore,
+	auditWriter io.Writer,
+) {
 	defer connection.Close()
 
 	if err := connection.SetReadDeadline(
@@ -210,7 +260,15 @@ func handleConnection(
 				response,
 			)
 		} else {
-			response = Dispatch(store, request)
+			if settings != nil {
+				response = DispatchWithSettings(
+					store,
+					settings,
+					request,
+				)
+			} else {
+				response = Dispatch(store, request)
+			}
 
 			writeMutationAudit(
 				auditWriter,

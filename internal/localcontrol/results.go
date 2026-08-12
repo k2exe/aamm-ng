@@ -13,6 +13,7 @@ const (
 	ErrorUnknownOperation   = "unknown_operation"
 	ErrorInvalidTarget      = "invalid_target"
 	ErrorInvalidMessage     = "invalid_message"
+	ErrorInvalidSettings    = "invalid_settings"
 	ErrorNotFound           = "not_found"
 	ErrorAlreadyExists      = "already_exists"
 	ErrorLegacyConflict     = "legacy_conflict"

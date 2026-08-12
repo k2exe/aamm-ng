@@ -437,3 +437,58 @@
         grid-column: 1;
     }
 }
+
+
+/* AAMM-NG settings navigation and content */
+
+.aamm-rail
+{
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.aamm-settings-link
+{
+    margin-top: auto;
+    color: var(--subtitle-fg-color);
+    text-align: center;
+    text-decoration: none;
+}
+
+.aamm-settings-link:hover
+{
+    color: var(--title-fg-color);
+}
+
+.aamm-settings-icon
+{
+    display: block;
+    width: 32px;
+    height: 32px;
+    margin: 16px;
+    font-size: 30px;
+    line-height: 32px;
+}
+
+.aamm-settings-list
+{
+    border-top: 1px solid var(--hr-color);
+}
+
+.aamm-setting-row
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--hr-color);
+}
+
+.aamm-setting-value
+{
+    flex: 0 0 auto;
+    color: var(--title-fg-color);
+    font-weight: bold;
+}

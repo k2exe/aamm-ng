@@ -2,12 +2,14 @@ package webadmin
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/k2exe/aamm-ng/internal/appconfig"
 	"github.com/k2exe/aamm-ng/internal/auditidentity"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
 )
@@ -622,6 +624,10 @@ type fakeLister struct {
 	deleteErr    error
 	deleteCalls  int
 	deleteTarget string
+
+	settingsResult    appconfig.Config
+	settingsErr       error
+	settingsReadCalls int
 }
 
 func (lister *fakeLister) List(
@@ -686,6 +692,14 @@ func (lister *fakeLister) Delete(
 	lister.deleteTarget = target
 
 	return lister.deleteResult, lister.deleteErr
+}
+
+func (lister *fakeLister) SettingsRead(
+	_ context.Context,
+) (appconfig.Config, error) {
+	lister.settingsReadCalls++
+
+	return lister.settingsResult, lister.settingsErr
 }
 
 var _ AlertManager = (*fakeLister)(nil)
@@ -2595,5 +2609,187 @@ func TestHandlerRendersNewAlertModalWithValidAttributes(t *testing.T) {
 
 	if strings.Contains(body, `\tid="ctrl-modal"`) {
 		t.Fatal("new alert modal contains literal escaped indentation")
+	}
+}
+
+func TestHandlerRendersAuthenticatedSettingsPage(t *testing.T) {
+	alerts := &fakeLister{
+		settingsResult: appconfig.Defaults(),
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/settings",
+	)
+
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusOK,
+		)
+	}
+
+	body := response.Body.String()
+
+	for _, expected := range []string{
+		"AAMM-NG Settings",
+		"Application settings",
+		"Configuration schema",
+		"Version 1",
+		`href="/settings"`,
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf(
+				"settings page missing %q",
+				expected,
+			)
+		}
+	}
+
+	if alerts.settingsReadCalls != 1 {
+		t.Fatalf(
+			"SettingsRead calls = %d; want 1",
+			alerts.settingsReadCalls,
+		)
+	}
+
+	if alerts.calls != 0 {
+		t.Fatalf(
+			"List calls = %d; want 0",
+			alerts.calls,
+		)
+	}
+}
+
+func TestHandlerSettingsHeadDoesNotReadSettings(t *testing.T) {
+	alerts := &fakeLister{
+		settingsResult: appconfig.Defaults(),
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodHead,
+		"/settings",
+	)
+
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusOK,
+		)
+	}
+
+	if response.Body.Len() != 0 {
+		t.Fatalf(
+			"HEAD body = %q; want empty",
+			response.Body.String(),
+		)
+	}
+
+	if alerts.settingsReadCalls != 0 {
+		t.Fatalf(
+			"SettingsRead calls = %d; want 0",
+			alerts.settingsReadCalls,
+		)
+	}
+}
+
+func TestHandlerSettingsRejectsUnsupportedMethod(t *testing.T) {
+	alerts := &fakeLister{
+		settingsResult: appconfig.Defaults(),
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodPut,
+		"/settings",
+	)
+
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusMethodNotAllowed,
+		)
+	}
+
+	if got := response.Header().Get("Allow"); got != "GET, HEAD" {
+		t.Fatalf(
+			"Allow = %q; want GET, HEAD",
+			got,
+		)
+	}
+
+	if alerts.settingsReadCalls != 0 {
+		t.Fatalf(
+			"SettingsRead calls = %d; want 0",
+			alerts.settingsReadCalls,
+		)
+	}
+}
+
+func TestHandlerSettingsReadFailureReturnsUnavailable(t *testing.T) {
+	alerts := &fakeLister{
+		settingsErr: errors.New("control unavailable"),
+	}
+
+	handler := NewHandler(
+		&fakeVerifier{authenticated: true},
+		alerts,
+	)
+
+	request := authenticatedRequest(
+		t,
+		http.MethodGet,
+		"/settings",
+	)
+
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf(
+			"status = %d; want %d",
+			response.Code,
+			http.StatusServiceUnavailable,
+		)
+	}
+
+	if alerts.settingsReadCalls != 1 {
+		t.Fatalf(
+			"SettingsRead calls = %d; want 1",
+			alerts.settingsReadCalls,
+		)
 	}
 }

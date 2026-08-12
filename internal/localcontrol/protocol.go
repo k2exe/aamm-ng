@@ -9,6 +9,8 @@ import (
 	"net/netip"
 	"strings"
 	"unicode"
+
+	"github.com/k2exe/aamm-ng/internal/appconfig"
 )
 
 const (
@@ -22,12 +24,14 @@ const (
 type Operation string
 
 const (
-	OperationList    Operation = "list"
-	OperationRead    Operation = "read"
-	OperationCreate  Operation = "create"
-	OperationWrite   Operation = "write"
-	OperationConvert Operation = "convert"
-	OperationDelete  Operation = "delete"
+	OperationList            Operation = "list"
+	OperationRead            Operation = "read"
+	OperationCreate          Operation = "create"
+	OperationWrite           Operation = "write"
+	OperationConvert         Operation = "convert"
+	OperationDelete          Operation = "delete"
+	OperationSettingsRead    Operation = "settings_read"
+	OperationSettingsReplace Operation = "settings_replace"
 )
 
 var (
@@ -46,11 +50,12 @@ type MutationAudit struct {
 }
 
 type Request struct {
-	Version   int            `json:"version"`
-	Operation Operation      `json:"operation"`
-	Target    string         `json:"target,omitempty"`
-	Message   string         `json:"message,omitempty"`
-	Audit     *MutationAudit `json:"audit,omitempty"`
+	Version   int               `json:"version"`
+	Operation Operation         `json:"operation"`
+	Target    string            `json:"target,omitempty"`
+	Message   string            `json:"message,omitempty"`
+	Settings  *appconfig.Config `json:"settings,omitempty"`
+	Audit     *MutationAudit    `json:"audit,omitempty"`
 }
 
 type Error struct {
@@ -120,9 +125,10 @@ func validateRequest(request Request) error {
 	case OperationList:
 		if request.Target != "" ||
 			request.Message != "" ||
+			request.Settings != nil ||
 			request.Audit != nil {
 			return fmt.Errorf(
-				"%w: list accepts no target, message, or audit attribution",
+				"%w: list accepts no target, message, settings, or audit attribution",
 				ErrInvalidRequest,
 			)
 		}
@@ -136,9 +142,10 @@ func validateRequest(request Request) error {
 		}
 
 		if request.Message != "" ||
+			request.Settings != nil ||
 			request.Audit != nil {
 			return fmt.Errorf(
-				"%w: read accepts no message or audit attribution",
+				"%w: read accepts no message, settings, or audit attribution",
 				ErrInvalidRequest,
 			)
 		}
@@ -151,9 +158,10 @@ func validateRequest(request Request) error {
 			)
 		}
 
-		if request.Message != "" {
+		if request.Message != "" ||
+			request.Settings != nil {
 			return fmt.Errorf(
-				"%w: delete accepts no message",
+				"%w: delete accepts no message or settings",
 				ErrInvalidRequest,
 			)
 		}
@@ -176,6 +184,45 @@ func validateRequest(request Request) error {
 				"%w: %s requires message",
 				ErrInvalidRequest,
 				request.Operation,
+			)
+		}
+
+		if request.Settings != nil {
+			return fmt.Errorf(
+				"%w: %s accepts no settings",
+				ErrInvalidRequest,
+				request.Operation,
+			)
+		}
+
+		if err := validateRequestAudit(request.Audit); err != nil {
+			return err
+		}
+
+	case OperationSettingsRead:
+		if request.Target != "" ||
+			request.Message != "" ||
+			request.Settings != nil ||
+			request.Audit != nil {
+			return fmt.Errorf(
+				"%w: settings_read accepts no target, message, settings, or audit attribution",
+				ErrInvalidRequest,
+			)
+		}
+
+	case OperationSettingsReplace:
+		if request.Target != "" ||
+			request.Message != "" {
+			return fmt.Errorf(
+				"%w: settings_replace accepts no target or message",
+				ErrInvalidRequest,
+			)
+		}
+
+		if request.Settings == nil {
+			return fmt.Errorf(
+				"%w: settings_replace requires settings",
+				ErrInvalidRequest,
 			)
 		}
 
