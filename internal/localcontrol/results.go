@@ -8,21 +8,22 @@ import (
 )
 
 const (
-	ErrorInvalidRequest     = "invalid_request"
-	ErrorUnsupportedVersion = "unsupported_version"
-	ErrorUnknownOperation   = "unknown_operation"
-	ErrorInvalidTarget      = "invalid_target"
-	ErrorInvalidMessage     = "invalid_message"
-	ErrorInvalidSettings    = "invalid_settings"
-	ErrorNotFound           = "not_found"
-	ErrorAlreadyExists      = "already_exists"
-	ErrorLegacyConflict     = "legacy_conflict"
-	ErrorOversizedConflict  = "oversized_conflict"
-	ErrorManagedConflict    = "managed_conflict"
-	ErrorSourceChanged      = "source_changed"
-	ErrorUnsafeFile         = "unsafe_file"
-	ErrorStoreClosed        = "store_closed"
-	ErrorInternal           = "internal_error"
+	ErrorInvalidRequest              = "invalid_request"
+	ErrorUnsupportedVersion          = "unsupported_version"
+	ErrorUnknownOperation            = "unknown_operation"
+	ErrorInvalidTarget               = "invalid_target"
+	ErrorInvalidMessage              = "invalid_message"
+	ErrorInvalidSettings             = "invalid_settings"
+	ErrorSettingsDurabilityUncertain = "settings_durability_uncertain"
+	ErrorNotFound                    = "not_found"
+	ErrorAlreadyExists               = "already_exists"
+	ErrorLegacyConflict              = "legacy_conflict"
+	ErrorOversizedConflict           = "oversized_conflict"
+	ErrorManagedConflict             = "managed_conflict"
+	ErrorSourceChanged               = "source_changed"
+	ErrorUnsafeFile                  = "unsafe_file"
+	ErrorStoreClosed                 = "store_closed"
+	ErrorInternal                    = "internal_error"
 )
 
 type EntryResult struct {

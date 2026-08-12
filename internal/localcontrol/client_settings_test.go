@@ -429,3 +429,57 @@ func TestClientSettingsReplaceRejectsInvalidResponseConfig(
 		t.Fatalf("test server: %v", err)
 	}
 }
+
+func TestDecodeSettingsResultPreservesDurabilityWarning(
+	t *testing.T,
+) {
+	result, err := decodeSettingsResult(
+		Failure(
+			ErrorSettingsDurabilityUncertain,
+			"application settings applied; durability is uncertain",
+		),
+	)
+
+	if err == nil {
+		t.Fatal("decodeSettingsResult() error = nil; want warning")
+	}
+
+	if result != (appconfig.Config{}) {
+		t.Fatalf(
+			"result = %#v; want zero config on warning",
+			result,
+		)
+	}
+
+	var remoteErr *RemoteError
+
+	if !errors.As(err, &remoteErr) {
+		t.Fatalf(
+			"error type = %T; want *RemoteError",
+			err,
+		)
+	}
+
+	if remoteErr.Code != ErrorSettingsDurabilityUncertain {
+		t.Fatalf(
+			"remote error code = %q; want %q",
+			remoteErr.Code,
+			ErrorSettingsDurabilityUncertain,
+		)
+	}
+
+	if remoteErr.Message !=
+		"application settings applied; durability is uncertain" {
+		t.Fatalf(
+			"remote error message = %q; want durability warning",
+			remoteErr.Message,
+		)
+	}
+
+	if errors.Is(err, ErrInvalidResponse) {
+		t.Fatalf(
+			"durability warning was classified as invalid response: %v",
+			err,
+		)
+	}
+}

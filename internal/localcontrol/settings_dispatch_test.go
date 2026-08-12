@@ -258,3 +258,45 @@ func TestDispatchWithSettingsDoesNotLeakPersistenceError(t *testing.T) {
 		)
 	}
 }
+
+func TestDispatchWithSettingsReportsDurabilityWarning(
+	t *testing.T,
+) {
+	settings := &fakeSettingsStore{
+		current:    appconfig.Defaults(),
+		replaceErr: appconfig.ErrDurabilityUncertain,
+	}
+
+	replacement := appconfig.Defaults()
+
+	response := DispatchWithSettings(
+		&fakeStore{},
+		settings,
+		Request{
+			Version:   ProtocolVersion,
+			Operation: OperationSettingsReplace,
+			Settings:  &replacement,
+		},
+	)
+
+	if response.OK {
+		t.Fatalf(
+			"DispatchWithSettings() = %#v; want warning response",
+			response,
+		)
+	}
+
+	requireErrorCode(
+		t,
+		response,
+		ErrorSettingsDurabilityUncertain,
+	)
+
+	if response.Error.Message !=
+		"application settings applied; durability is uncertain" {
+		t.Fatalf(
+			"error message = %q; want safe durability warning",
+			response.Error.Message,
+		)
+	}
+}

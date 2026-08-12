@@ -126,3 +126,60 @@ func TestWriteMutationAuditIgnoresSettingsRead(t *testing.T) {
 		)
 	}
 }
+
+func TestWriteMutationAuditSettingsDurabilityWarning(
+	t *testing.T,
+) {
+	var output bytes.Buffer
+
+	settings := appconfig.Defaults()
+
+	writeMutationAudit(
+		&output,
+		time.Date(
+			2026, time.August, 12,
+			21, 45, 0, 0,
+			time.UTC,
+		),
+		Request{
+			Version:   ProtocolVersion,
+			Operation: OperationSettingsReplace,
+			Settings:  &settings,
+			Audit:     testMutationAudit(),
+		},
+		Failure(
+			ErrorSettingsDurabilityUncertain,
+			"application settings applied; durability is uncertain",
+		),
+	)
+
+	got := output.String()
+
+	for _, expected := range []string{
+		`operation="settings_replace"`,
+		`outcome="applied_with_warning"`,
+		`warning_code="settings_durability_uncertain"`,
+	} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf(
+				"audit record missing %q: %q",
+				expected,
+				got,
+			)
+		}
+	}
+
+	if strings.Contains(got, `outcome="failure"`) {
+		t.Fatalf(
+			"durability warning audited as failure: %q",
+			got,
+		)
+	}
+
+	if strings.Contains(got, `error_code=`) {
+		t.Fatalf(
+			"durability warning audited as error: %q",
+			got,
+		)
+	}
+}

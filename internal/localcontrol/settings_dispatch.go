@@ -51,6 +51,12 @@ func dispatchSettingsReplace(
 
 func responseForSettingsError(err error) Response {
 	switch {
+	case errors.Is(err, appconfig.ErrDurabilityUncertain):
+		return Failure(
+			ErrorSettingsDurabilityUncertain,
+			"application settings applied; durability is uncertain",
+		)
+
 	case errors.Is(err, appconfig.ErrInvalidConfig),
 		errors.Is(err, appconfig.ErrUnsupportedVersion),
 		errors.Is(err, appconfig.ErrTooLarge):
