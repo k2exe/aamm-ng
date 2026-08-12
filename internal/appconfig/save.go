@@ -113,7 +113,8 @@ func saveWithDirectorySync(
 	directoryHandle, err := os.Open(directory)
 	if err != nil {
 		return true, fmt.Errorf(
-			"open application configuration directory: %w",
+			"%w: open application configuration directory: %w",
+			ErrDurabilityUncertain,
 			err,
 		)
 	}
@@ -121,7 +122,8 @@ func saveWithDirectorySync(
 
 	if err := syncDirectory(directoryHandle); err != nil {
 		return true, fmt.Errorf(
-			"sync application configuration directory: %w",
+			"%w: sync application configuration directory: %w",
+			ErrDurabilityUncertain,
 			err,
 		)
 	}

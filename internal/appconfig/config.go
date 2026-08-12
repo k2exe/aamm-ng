@@ -16,9 +16,10 @@ const (
 )
 
 var (
-	ErrInvalidConfig      = errors.New("invalid application configuration")
-	ErrUnsupportedVersion = errors.New("unsupported application configuration version")
-	ErrTooLarge           = errors.New("application configuration exceeds size limit")
+	ErrInvalidConfig       = errors.New("invalid application configuration")
+	ErrUnsupportedVersion  = errors.New("unsupported application configuration version")
+	ErrTooLarge            = errors.New("application configuration exceeds size limit")
+	ErrDurabilityUncertain = errors.New("application configuration durability is uncertain")
 )
 
 type Config struct {

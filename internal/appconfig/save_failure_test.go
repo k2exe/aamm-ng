@@ -159,3 +159,44 @@ func TestSaveReportsUncommittedBeforeRename(t *testing.T) {
 		)
 	}
 }
+
+func TestSaveClassifiesCommittedDirectorySyncFailure(
+	t *testing.T,
+) {
+	path := filepath.Join(
+		t.TempDir(),
+		"config.json",
+	)
+
+	syncErr := errors.New(
+		"synthetic directory sync failure",
+	)
+
+	committed, err := saveWithDirectorySync(
+		path,
+		Defaults(),
+		func(_ *os.File) error {
+			return syncErr
+		},
+	)
+
+	if !committed {
+		t.Fatal(
+			"saveWithDirectorySync() committed = false; want true",
+		)
+	}
+
+	if !errors.Is(err, ErrDurabilityUncertain) {
+		t.Fatalf(
+			"saveWithDirectorySync() error = %v; want ErrDurabilityUncertain",
+			err,
+		)
+	}
+
+	if !errors.Is(err, syncErr) {
+		t.Fatalf(
+			"saveWithDirectorySync() error = %v; want underlying sync error",
+			err,
+		)
+	}
+}

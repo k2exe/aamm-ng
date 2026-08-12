@@ -53,12 +53,20 @@ func writeMutationAudit(
 
 	outcome := "success"
 	errorCode := ""
+	warningCode := ""
 
 	if !response.OK {
-		outcome = "failure"
+		if request.Operation == OperationSettingsReplace &&
+			response.Error != nil &&
+			response.Error.Code == ErrorSettingsDurabilityUncertain {
+			outcome = "applied_with_warning"
+			warningCode = response.Error.Code
+		} else {
+			outcome = "failure"
 
-		if response.Error != nil {
-			errorCode = response.Error.Code
+			if response.Error != nil {
+				errorCode = response.Error.Code
+			}
 		}
 	}
 
@@ -107,6 +115,14 @@ func writeMutationAudit(
 			writer,
 			" error_code=%s",
 			strconv.Quote(errorCode),
+		)
+	}
+
+	if warningCode != "" {
+		_, _ = fmt.Fprintf(
+			writer,
+			" warning_code=%s",
+			strconv.Quote(warningCode),
 		)
 	}
 
