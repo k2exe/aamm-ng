@@ -1,12 +1,13 @@
 package alertstore
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"sort"
 	"strings"
@@ -23,8 +24,10 @@ type ConversionResult struct {
 }
 
 type sourceSnapshot struct {
-	info   os.FileInfo
-	digest [sha256.Size]byte
+	info os.FileInfo
+	// content is the exact source bytes (at most MaxLegacyBytes). Comparing
+	// the bytes is stronger than comparing a digest and needs no hash code.
+	content []byte
 }
 
 func (s *Store) ConvertLegacy(
@@ -165,13 +168,12 @@ func backupAlert(
 		}
 	}()
 
-	hasher := sha256.New()
 	capture := boundedCapture{
 		limit: MaxLegacyBytes + 1,
 	}
 
 	copied, err := io.Copy(
-		io.MultiWriter(backup, hasher, &capture),
+		io.MultiWriter(backup, &capture),
 		io.LimitReader(source, MaxLegacyBytes+1),
 	)
 	if err != nil {
@@ -283,12 +285,9 @@ func backupAlert(
 		)
 	}
 
-	var digest [sha256.Size]byte
-	copy(digest[:], hasher.Sum(nil))
-
 	return sourceSnapshot{
-		info:   sourceAfter,
-		digest: digest,
+		info:    sourceAfter,
+		content: capture.data,
 	}, backupName, nil
 }
 
@@ -342,10 +341,10 @@ func verifySourceUnchanged(
 		return fmt.Errorf("%w: %s", ErrSourceChanged, name)
 	}
 
-	hasher := sha256.New()
+	var current bytes.Buffer
 
 	copied, copyErr := io.Copy(
-		hasher,
+		&current,
 		io.LimitReader(source, MaxLegacyBytes+1),
 	)
 	afterInfo, statErr := source.Stat()
@@ -367,10 +366,7 @@ func verifySourceUnchanged(
 		return fmt.Errorf("%w: %s", ErrSourceChanged, name)
 	}
 
-	var digest [sha256.Size]byte
-	copy(digest[:], hasher.Sum(nil))
-
-	if digest != snapshot.digest {
+	if !bytes.Equal(current.Bytes(), snapshot.content) {
 		return fmt.Errorf("%w: %s", ErrSourceChanged, name)
 	}
 
@@ -517,9 +513,7 @@ func newBackupName(target alerttarget.Target) (string, error) {
 func randomHex(size int) (string, error) {
 	value := make([]byte, size)
 
-	if _, err := rand.Read(value); err != nil {
-		return "", err
-	}
+	fillRandom(value)
 
 	return hex.EncodeToString(value), nil
 }
@@ -544,4 +538,16 @@ func (capture *boundedCapture) Write(value []byte) (int, error) {
 	}
 
 	return len(value), nil
+}
+
+// fillRandom fills buffer from the runtime's OS-seeded generator. It is used
+// only for unique temporary and backup file names (always created with
+// O_EXCL through os.Root); nothing here is a secret.
+func fillRandom(buffer []byte) {
+	for i := 0; i < len(buffer); i += 8 {
+		var word [8]byte
+
+		binary.LittleEndian.PutUint64(word[:], rand.Uint64())
+		copy(buffer[i:], word[:])
+	}
 }

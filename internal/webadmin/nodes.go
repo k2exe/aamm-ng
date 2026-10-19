@@ -2,7 +2,7 @@ package webadmin
 
 import (
 	"encoding/json"
-	"net/http"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 )
 
 type localNodesResponse struct {

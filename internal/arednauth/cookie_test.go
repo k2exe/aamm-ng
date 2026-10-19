@@ -1,8 +1,8 @@
 package arednauth
 
 import (
-	"net/http"
-	"net/http/httptest"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
+	"github.com/k2exe/aamm-ng/internal/minihttp/httptest"
 	"testing"
 )
 

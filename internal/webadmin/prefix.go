@@ -1,6 +1,6 @@
 package webadmin
 
-import "net/http"
+import http "github.com/k2exe/aamm-ng/internal/minihttp"
 
 const (
 	forwardedPrefixHeader = "X-Forwarded-Prefix"

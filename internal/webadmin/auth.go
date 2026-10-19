@@ -2,7 +2,7 @@ package webadmin
 
 import (
 	"context"
-	"net/http"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 	"net/netip"
 	"strings"
 

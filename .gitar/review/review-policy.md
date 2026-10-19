@@ -44,7 +44,7 @@ If the code is unchanged and unrelated to the pull request, do not create noise 
 
 Known deferred items include:
 
-- TLS termination can affect the current Origin check.
+- AAMM-NG is plain HTTP only; an `https` Origin never matches the same-origin check.
 - The local control server processes clients serially.
 - Authentication verification does not yet have a dedicated rate limiter.
 - The Go version policy can be made less patch-specific.

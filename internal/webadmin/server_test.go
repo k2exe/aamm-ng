@@ -3,9 +3,9 @@ package webadmin
 import (
 	"context"
 	"errors"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 	"io"
 	"net"
-	"net/http"
 	"strings"
 	"testing"
 	"time"

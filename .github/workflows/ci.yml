@@ -19,5 +19,24 @@ jobs:
       - run: git diff --exit-code
       - run: go vet ./...
       - run: go test -race ./...
+      - name: Verify no TLS or cryptography is linked
+        run: |
+          set -euo pipefail
+          for cmd in aamm-ng aamm-ng-web; do
+            if go list -deps "./cmd/${cmd}" | grep -E '^(crypto|net/http|vendor/golang.org/x/crypto)'; then
+              echo "::error::${cmd} links TLS/cryptography or net/http; use internal/minihttp" >&2
+              exit 1
+            fi
+          done
       - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/aamm-ng-linux-amd64 ./cmd/aamm-ng
       - run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/aamm-ng-linux-arm64 ./cmd/aamm-ng
+      - name: Report stripped binary sizes
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64 arm mips mipsle; do
+            for cmd in aamm-ng aamm-ng-web; do
+              CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" GOMIPS=softfloat GOARM=7 \
+                go build -trimpath -ldflags="-s -w" -o "/tmp/${cmd}-${arch}" "./cmd/${cmd}"
+            done
+          done
+          ls -l /tmp/aamm-ng-* | awk '{printf "%10d  %s\n", $5, $9}' | tee -a "$GITHUB_STEP_SUMMARY"
