@@ -38,10 +38,37 @@ func NewHandler(
 	)
 }
 
+// NewHandlerWithPortal is NewHandler with management of the multi-user
+// portal on the Settings page.
+func NewHandlerWithPortal(
+	verifier SessionVerifier,
+	alerts AlertManager,
+	admin PortalAdmin,
+	runtime PortalRuntime,
+) http.Handler {
+	return newHandlerWithPortal(
+		verifier,
+		alerts,
+		arednnodes.NewFetcher(),
+		admin,
+		runtime,
+	)
+}
+
 func newHandler(
 	verifier SessionVerifier,
 	alerts AlertManager,
 	nodes nodeFinder,
+) http.Handler {
+	return newHandlerWithPortal(verifier, alerts, nodes, nil, nil)
+}
+
+func newHandlerWithPortal(
+	verifier SessionVerifier,
+	alerts AlertManager,
+	nodes nodeFinder,
+	portalAdmin PortalAdmin,
+	portalRuntime PortalRuntime,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -98,11 +125,23 @@ func newHandler(
 		)
 		writer.WriteHeader(http.StatusOK)
 
+		var portalSection *portalView
+
+		if portalAdmin != nil {
+			portalSection = buildPortalView(
+				request,
+				portalAdmin,
+				portalRuntime,
+				settings,
+			)
+		}
+
 		_ = settingsTemplate.Execute(
 			writer,
 			pageData{
 				BasePath: requestBasePath(request),
 				Settings: &settings,
+				Portal:   portalSection,
 			},
 		)
 	})
@@ -436,6 +475,10 @@ func newHandler(
 		)
 	})
 
+	if portalAdmin != nil {
+		registerPortalRoutes(mux, portalAdmin, portalRuntime)
+	}
+
 	return RequireAdmin(verifier, mux)
 }
 
@@ -458,6 +501,7 @@ type pageData struct {
 	DeleteModal *localcontrol.EntryResult
 	NewModal    bool
 	Settings    *appconfig.Config
+	Portal      *portalView
 }
 
 var landingTemplate = template.Must(
@@ -1121,6 +1165,175 @@ var settingsTemplate = template.Must(
 						</div>
 					</div>
 				</div>
+
+				{{if .Portal}}
+				<div class="section" id="portal">
+					<div class="section-title">
+						Multi-user portal
+					</div>
+
+					{{if .Portal.Notice}}
+					<div class="aamm-portal-notice" role="status">{{.Portal.Notice}}</div>
+					{{end}}
+					{{if .Portal.Problem}}
+					<div class="aamm-portal-problem" role="alert">{{.Portal.Problem}}</div>
+					{{end}}
+
+					<p class="aamm-portal-text">
+						The portal lets named users read and edit alerts without the
+						node administrator password. It has its own address and its own
+						login. This page and the AREDN login do not change.
+					</p>
+
+					<p class="aamm-portal-warning">
+						<b>The portal does not use encryption.</b>
+						Passwords cross the network as plain text, as the AREDN login
+						does when you use http. Tell users not to reuse a password
+						from another service.
+					</p>
+
+					<form
+						method="post"
+						action="{{.BasePath}}/settings/portal"
+						class="aamm-portal-form"
+					>
+						<div class="aamm-settings-list">
+							<div class="aamm-setting-row">
+								<div>
+									<div class="t">Portal</div>
+									<div class="s">Listens on port {{.Portal.Port}} when it is on.</div>
+								</div>
+								<select name="enabled" aria-label="Portal">
+									<option value="0"{{if not .Portal.Enabled}} selected{{end}}>Off</option>
+									<option value="1"{{if .Portal.Enabled}} selected{{end}}>On</option>
+								</select>
+							</div>
+
+							<div class="aamm-setting-row">
+								<div>
+									<div class="t">Who can connect</div>
+									<div class="s">
+										"LAN only" accepts connections on this node's LAN address only.
+									</div>
+								</div>
+								<select name="reach" aria-label="Who can connect">
+									<option value="mesh"{{if eq .Portal.Reach "mesh"}} selected{{end}}>This node's LAN and the mesh</option>
+									<option value="lan"{{if eq .Portal.Reach "lan"}} selected{{end}}>This node's LAN only</option>
+								</select>
+							</div>
+
+							<div class="aamm-setting-row">
+								<div>
+									<div class="t">Status</div>
+								</div>
+								<div class="aamm-setting-value">
+									{{if .Portal.Listening}}Listening on {{.Portal.Address}}{{else if .Portal.Enabled}}Not listening{{else}}Off{{end}}
+								</div>
+							</div>
+							{{if .Portal.StatusProblem}}
+							<div class="aamm-portal-problem">{{.Portal.StatusProblem}}</div>
+							{{end}}
+						</div>
+
+						<button type="submit">Save portal settings</button>
+					</form>
+
+					<div class="aamm-portal-box">
+						<div class="t">Offer the portal on the mesh (optional)</div>
+						<p class="aamm-portal-text">
+							Other nodes list a service only after you add it to this node.
+							Open the AREDN node settings, find Local Services, add a
+							Generic URL service with these values, and save:
+						</p>
+						<table class="aamm-portal-table">
+							<tr><th scope="row">Service name</th><td>{{.Portal.ServiceName}}</td></tr>
+							<tr><th scope="row">Protocol</th><td>{{.Portal.ServiceProtocol}}</td></tr>
+							<tr><th scope="row">Host</th><td>{{.Portal.ServiceHost}}</td></tr>
+							<tr><th scope="row">Port</th><td>{{.Portal.Port}}</td></tr>
+							<tr><th scope="row">Path</th><td>(leave empty)</td></tr>
+						</table>
+						<p class="aamm-portal-text">
+							Portal address: <a href="{{.Portal.URL}}">{{.Portal.URL}}</a>.
+							AREDN checks each service every hour, and shows it only if the
+							portal answers. The portal must be on.
+						</p>
+					</div>
+
+					<div class="section-title">
+						Portal users
+					</div>
+
+					{{if .Portal.UsersProblem}}
+					<div class="aamm-portal-problem">{{.Portal.UsersProblem}}</div>
+					{{end}}
+
+					{{if .Portal.Users}}
+					{{range .Portal.Users}}
+					<details class="aamm-portal-user">
+						<summary>
+							<b>{{.Name}}</b>
+							<span class="aamm-portal-role">{{.Role}}</span>
+							{{if .Disabled}}<span class="aamm-portal-off">disabled</span>{{end}}
+						</summary>
+
+						<form method="post" action="{{$.BasePath}}/settings/portal/users/{{.Name}}/role" class="aamm-portal-form">
+							<label>Role
+								<select name="role">
+									<option value="viewer"{{if eq .Role "viewer"}} selected{{end}}>viewer: can read alerts</option>
+									<option value="editor"{{if eq .Role "editor"}} selected{{end}}>editor: can read and change alerts</option>
+								</select>
+							</label>
+							<button type="submit">Change role</button>
+						</form>
+
+						<form method="post" action="{{$.BasePath}}/settings/portal/users/{{.Name}}/password" class="aamm-portal-form">
+							<label>New password
+								<input type="password" name="password" autocomplete="new-password" minlength="14" maxlength="128" required>
+							</label>
+							<label>Repeat the password
+								<input type="password" name="confirm" autocomplete="new-password" minlength="14" maxlength="128" required>
+							</label>
+							<button type="submit">Set password</button>
+						</form>
+
+						<form method="post" action="{{$.BasePath}}/settings/portal/users/{{.Name}}/disabled" class="aamm-portal-form">
+							<input type="hidden" name="disabled" value="{{if .Disabled}}0{{else}}1{{end}}">
+							<button type="submit">{{if .Disabled}}Enable the user{{else}}Disable the user{{end}}</button>
+						</form>
+
+						<form method="post" action="{{$.BasePath}}/settings/portal/users/{{.Name}}/delete" class="aamm-portal-form">
+							<label>Type <b>{{.Name}}</b> to delete this user
+								<input type="text" name="confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+							</label>
+							<button type="submit">Delete the user</button>
+						</form>
+					</details>
+					{{end}}
+					{{else if not .Portal.UsersProblem}}
+					<p class="aamm-portal-text">There are no portal users yet.</p>
+					{{end}}
+
+					<form method="post" action="{{.BasePath}}/settings/portal/users" class="aamm-portal-form aamm-portal-box">
+						<div class="t">Add a user</div>
+						<label>User name
+							<input type="text" name="name" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" required>
+						</label>
+						<label>Role
+							<select name="role">
+								<option value="viewer">viewer: can read alerts</option>
+								<option value="editor">editor: can read and change alerts</option>
+							</select>
+						</label>
+						<label>Password (at least 14 characters)
+							<input type="password" name="password" autocomplete="new-password" minlength="14" maxlength="128" required>
+						</label>
+						<label>Repeat the password
+							<input type="password" name="confirm" autocomplete="new-password" minlength="14" maxlength="128" required>
+						</label>
+						<button type="submit">Add user</button>
+					</form>
+				</div>
+				{{end}}
 
 			</div>
 		</div>

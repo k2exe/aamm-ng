@@ -492,3 +492,97 @@
     color: var(--title-fg-color);
     font-weight: bold;
 }
+
+.aamm-portal-text
+{
+    margin: 12px 0;
+}
+
+.aamm-portal-notice,
+.aamm-portal-problem,
+.aamm-portal-warning
+{
+    margin: 12px 0;
+    padding: 10px 12px;
+    border-radius: 4px;
+}
+
+.aamm-portal-notice
+{
+    border: 1px solid #2f6a45;
+    background: rgba(47, 106, 69, 0.25);
+}
+
+.aamm-portal-problem
+{
+    border: 1px solid #8a3a3a;
+    background: rgba(138, 58, 58, 0.25);
+}
+
+.aamm-portal-warning
+{
+    border: 1px solid #8a6a2a;
+    background: rgba(138, 106, 42, 0.25);
+}
+
+.aamm-portal-box
+{
+    margin: 16px 0;
+    padding: 12px;
+    border: 1px solid var(--hr-color);
+    border-radius: 4px;
+}
+
+.aamm-portal-table th
+{
+    padding-right: 20px;
+    text-align: left;
+    font-weight: normal;
+}
+
+.aamm-portal-user
+{
+    margin: 8px 0;
+    padding: 8px 10px;
+    border: 1px solid var(--hr-color);
+    border-radius: 4px;
+}
+
+.aamm-portal-user summary
+{
+    cursor: pointer;
+}
+
+.aamm-portal-role,
+.aamm-portal-off
+{
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.aamm-portal-form
+{
+    margin: 12px 0;
+}
+
+.aamm-portal-form label
+{
+    display: block;
+    margin: 8px 0 4px;
+}
+
+.aamm-portal-form input[type="text"],
+.aamm-portal-form input[type="password"]
+{
+    display: block;
+    width: 100%;
+    max-width: 320px;
+}
+
+.aamm-portal-form button
+{
+    margin-top: 8px;
+}
