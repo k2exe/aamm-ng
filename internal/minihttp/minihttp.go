@@ -39,6 +39,7 @@ const (
 	StatusLengthRequired      = 411
 	StatusRequestEntityTooBig = 413
 	StatusRequestURITooLong   = 414
+	StatusTooManyRequests     = 429
 	StatusHeaderFieldsTooLarg = 431
 	StatusInternalServerError = 500
 	StatusNotImplemented      = 501
