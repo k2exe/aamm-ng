@@ -1,6 +1,6 @@
 package arednauth
 
-import "net/http"
+import http "github.com/k2exe/aamm-ng/internal/minihttp"
 
 const authCookieName = "authV1"
 

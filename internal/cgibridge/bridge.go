@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 	"io"
-	"net/http"
 	"net/netip"
 	"net/url"
 	"strconv"
@@ -54,12 +54,6 @@ func Run(
 
 	client := &http.Client{
 		Timeout: requestTimeout,
-		CheckRedirect: func(
-			_ *http.Request,
-			_ []*http.Request,
-		) error {
-			return http.ErrUseLastResponse
-		},
 	}
 
 	response, err := client.Do(request)

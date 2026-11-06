@@ -1,7 +1,6 @@
 package alertstore
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -602,9 +601,7 @@ func createTemporaryAlert(root *os.Root) (*os.File, string, error) {
 	for range 10 {
 		randomBytes := make([]byte, 16)
 
-		if _, err := rand.Read(randomBytes); err != nil {
-			return nil, "", err
-		}
+		fillRandom(randomBytes)
 
 		name := ".aamm-ng-" + hex.EncodeToString(randomBytes) + ".tmp"
 

@@ -1,9 +1,8 @@
 package webadmin
 
 import (
-	"crypto/tls"
-	"net/http"
-	"net/http/httptest"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
+	"github.com/k2exe/aamm-ng/internal/minihttp/httptest"
 	"testing"
 )
 
@@ -118,22 +117,21 @@ func TestSameOriginRejectsNullOrigin(t *testing.T) {
 	}
 }
 
-func TestSameOriginSupportsHTTPS(t *testing.T) {
+func TestSameOriginRejectsHTTPSOrigin(t *testing.T) {
+	// AAMM-NG is plain HTTP only; an https Origin never matches.
 	request := httptest.NewRequest(
 		http.MethodPost,
-		"https://node.local.mesh:11313/alerts/all",
+		"http://node.local.mesh:11313/alerts/all",
 		nil,
 	)
-
-	request.TLS = &tls.ConnectionState{}
 
 	request.Header.Set(
 		"Origin",
 		"https://node.local.mesh:11313",
 	)
 
-	if !sameOrigin(request) {
-		t.Fatal("sameOrigin() = false; want true")
+	if sameOrigin(request) {
+		t.Fatal("sameOrigin() accepted https Origin")
 	}
 }
 

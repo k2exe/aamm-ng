@@ -3,8 +3,8 @@ package webadmin
 import (
 	"context"
 	"errors"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 	"html/template"
-	"net/http"
 	"strings"
 
 	"github.com/k2exe/aamm-ng/internal/alerttarget"

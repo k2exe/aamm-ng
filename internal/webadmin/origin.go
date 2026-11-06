@@ -1,6 +1,6 @@
 package webadmin
 
-import "net/http"
+import http "github.com/k2exe/aamm-ng/internal/minihttp"
 
 func sameOrigin(request *http.Request) bool {
 	if request == nil {
@@ -12,12 +12,8 @@ func sameOrigin(request *http.Request) bool {
 		return false
 	}
 
-	scheme := "http"
-	if request.TLS != nil {
-		scheme = "https"
-	}
-
-	expected := scheme + "://" + request.Host
+	// AAMM-NG only ever receives plain HTTP from the loopback CGI bridge.
+	expected := "http://" + request.Host
 
 	return origin == expected
 }

@@ -3,8 +3,8 @@ package webadmin
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
+	"github.com/k2exe/aamm-ng/internal/minihttp/httptest"
 	"strings"
 	"testing"
 

@@ -2,7 +2,7 @@ package webadmin
 
 import (
 	"bytes"
-	"net/http/httptest"
+	"github.com/k2exe/aamm-ng/internal/minihttp/httptest"
 	"strings"
 	"testing"
 

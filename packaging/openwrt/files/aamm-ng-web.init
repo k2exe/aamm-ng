@@ -11,6 +11,12 @@ start_service() {
 	procd_open_instance
 	procd_set_param command "$PROG"
 
+	# Keep the Go runtime small on low-memory nodes.
+	procd_set_param env \
+		GOMAXPROCS=1 \
+		GOGC=50 \
+		GOMEMLIMIT=8MiB
+
 	procd_set_param user aamm-ng-web
 	procd_set_param group aamm-ng-control
 

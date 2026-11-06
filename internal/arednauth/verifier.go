@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 	"io"
-	"net"
-	"net/http"
 	"strings"
 	"time"
 )
@@ -39,27 +38,10 @@ type Verifier struct {
 }
 
 func NewVerifier() *Verifier {
-	dialer := &net.Dialer{
-		Timeout: requestTimeout,
-	}
-
-	transport := &http.Transport{
-		Proxy:             nil,
-		DialContext:       dialer.DialContext,
-		DisableKeepAlives: true,
-	}
-
 	return &Verifier{
 		endpoint: ProductionEndpoint,
 		client: &http.Client{
-			Transport: transport,
-			Timeout:   requestTimeout,
-			CheckRedirect: func(
-				_ *http.Request,
-				_ []*http.Request,
-			) error {
-				return http.ErrUseLastResponse
-			},
+			Timeout: requestTimeout,
 		},
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 	"net"
-	"net/http"
 	"time"
 )
 
@@ -13,7 +13,6 @@ const (
 	readHeaderTimeout = 5 * time.Second
 	readTimeout       = 30 * time.Second
 	writeTimeout      = 30 * time.Second
-	idleTimeout       = 60 * time.Second
 	shutdownTimeout   = 5 * time.Second
 	maxHeaderBytes    = 16 * 1024
 )
@@ -38,7 +37,6 @@ func Serve(
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
-		IdleTimeout:       idleTimeout,
 		MaxHeaderBytes:    maxHeaderBytes,
 	}
 

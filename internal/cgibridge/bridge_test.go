@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	http "github.com/k2exe/aamm-ng/internal/minihttp"
 	"io"
-	"net/http"
 	"strings"
 	"testing"
 )
