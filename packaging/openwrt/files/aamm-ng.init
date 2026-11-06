@@ -40,6 +40,12 @@ start_service() {
 		--backup-root "$BACKUP_ROOT" \
 		--config-path "$CONFIG_PATH"
 
+	# Keep the Go runtime small on low-memory nodes.
+	procd_set_param env \
+		GOMAXPROCS=1 \
+		GOGC=50 \
+		GOMEMLIMIT=8MiB
+
 	procd_set_param user aamm-ng
 	procd_set_param group aamm-ng
 
