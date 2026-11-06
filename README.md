@@ -99,6 +99,22 @@ https://www.arednmesh.org/node/5096
 
 ## Quick installation
 
+### Before you install: check free flash space
+
+Small nodes have little writable flash.
+
+If the flash is full, AREDN can mount the node filesystem as read-only
+when it starts. AAMM-NG cannot start in that state.
+
+Before you install, log in to the node with SSH and run:
+
+    df -k /overlay
+
+The Available column (in KB) must be larger than the size of the APK
+plus 256. The installed files can take more space than the APK file.
+The flash filesystem also needs free space to work. If the space is low,
+remove packages that you do not use first.
+
 ### 1. Download the correct APK
 
 Download the APK that matches the AREDN target on your node.
@@ -380,6 +396,25 @@ Confirm that you are logged in as the AREDN node administrator.
 Try the direct application path:
 
     http://<node-name>.local.mesh/cgi-bin/apps/AAMM-NG/admin
+
+### AAMM-NG control service unavailable
+
+This message means the AAMM-NG control service is not running.
+
+The most common cause on a small node is a full flash overlay. AREDN
+then mounts the filesystem as read-only, and the control service cannot
+create its directories.
+
+Log in to the node with SSH and run:
+
+    df -k /overlay
+    logread | grep -E 'aamm-ng|overlayfs'
+
+If the Available column shows less than 256, or the log shows
+`mounting read-only` or `Read-only file system`, the flash is full.
+
+Free space on the node, and then restart the node. If the node stays
+read-only, use AREDN failsafe mode or install the firmware again.
 
 ### Find node does not show the expected node
 

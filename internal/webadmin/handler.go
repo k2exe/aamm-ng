@@ -442,7 +442,10 @@ func newHandler(
 func managementUnavailable(writer http.ResponseWriter) {
 	http.Error(
 		writer,
-		"AAMM-NG control service unavailable.",
+		"AAMM-NG control service unavailable. "+
+			"It may not have started. "+
+			"Check the system log (logread | grep aamm-ng) "+
+			"and free space on /overlay (df -k /overlay).",
 		http.StatusServiceUnavailable,
 	)
 }
