@@ -118,8 +118,10 @@ methods:
   Available column (in KB).
 
 On an ath79 node with 16 MB of flash, such as the GL-AR300M16, make
-sure that at least 7 MB (7,168 KB) is free. We measured the flash use
-only on this device. Other devices can use more or less. On other
+sure that at least 8 MB (8,192 KB) is free. The multi-user portal made
+the package larger than v0.1.3-beta, which is why this number is higher
+than the measurement above. We measured the flash use only on this
+device. Other devices can use more or less. On other
 devices, make sure that the free flash is at least two times the size
 of the APK plus 1 MB. If you are not sure, do not install.
 
