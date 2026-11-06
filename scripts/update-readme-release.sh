@@ -53,7 +53,8 @@ trap 'rm -f "$TEMPORARY"' EXIT
 sed -E \
     -e "s#releases/(tag|download)/v[0-9]+\.[0-9]+\.[0-9]+(-beta)?#releases/\1/${TAG}#g" \
     -e "s#\[v[0-9]+\.[0-9]+\.[0-9]+(-beta)?\]#[${TAG}]#g" \
-    -e "s#AAMM-NG v[0-9]+\.[0-9]+\.[0-9]+(-beta)?#AAMM-NG ${TAG}#g" \
+    -e "s#AAMM-NG v[0-9]+\.[0-9]+\.[0-9]+(-beta)? is built#AAMM-NG ${TAG} is built#g" \
+    -e "s#\[AAMM-NG v[0-9]+\.[0-9]+\.[0-9]+(-beta)? release\]#[AAMM-NG ${TAG} release]#g" \
     -e "s#aamm-ng-[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+-#aamm-ng-${PKG_VERSION}-r${PKG_RELEASE}-#g" \
     "$README" > "$TEMPORARY"
 
