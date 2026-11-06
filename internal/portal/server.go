@@ -867,6 +867,13 @@ func remoteCode(err error) string {
 // describe turns a backend error into a status and a fixed message. It never
 // shows the text of an internal error.
 func describe(err error) (int, string) {
+	// The control client checks a target and a message before it calls the
+	// daemon. Its refusal is a problem with the input, not with the service.
+	if errors.Is(err, localcontrol.ErrInvalidRequest) {
+		return http.StatusBadRequest,
+			"The target or the message is not valid. A target is all, a group, or a node name."
+	}
+
 	switch remoteCode(err) {
 	case localcontrol.ErrorNotFound:
 		return http.StatusNotFound, "Alert not found."

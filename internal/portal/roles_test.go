@@ -380,6 +380,23 @@ func TestBackendErrorCodesMapToStatuses(t *testing.T) {
 	}
 }
 
+func TestInputRefusedByTheClientIsABadRequest(t *testing.T) {
+	e := newEnv(t)
+	editor := e.loginAs("alice")
+
+	e.backend.failure = fmt.Errorf("%w: invalid target", localcontrol.ErrInvalidRequest)
+
+	recorder := e.do(editor.post("/alerts/new", url.Values{"target": {"../etc/passwd"}, "message": {"x"}}))
+
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "not valid") {
+		t.Fatalf("status = %d\n%s", recorder.Code, recorder.Body)
+	}
+
+	if strings.Contains(recorder.Body.String(), "invalid target:") || strings.Contains(recorder.Body.String(), "invalid request") {
+		t.Fatal("the response shows the error text")
+	}
+}
+
 func TestFormsKeepTheUsersInputWhenAnErrorOccurs(t *testing.T) {
 	e := newEnv(t)
 	editor := e.loginAs("alice")
