@@ -78,11 +78,52 @@ func serveWithAuditWriter(
 	)
 }
 
+// ServeWithPortal serves alerts, settings and the multi-user portal user
+// operations.
+func ServeWithPortal(
+	ctx context.Context,
+	socketPath string,
+	store Store,
+	settings SettingsStore,
+	users UserStore,
+	ready chan<- struct{},
+) error {
+	return serveWithPortalAuditWriter(
+		ctx,
+		socketPath,
+		store,
+		settings,
+		users,
+		ready,
+		os.Stdout,
+	)
+}
+
 func serveWithSettingsAuditWriter(
 	ctx context.Context,
 	socketPath string,
 	store Store,
 	settings SettingsStore,
+	ready chan<- struct{},
+	auditWriter io.Writer,
+) error {
+	return serveWithPortalAuditWriter(
+		ctx,
+		socketPath,
+		store,
+		settings,
+		nil,
+		ready,
+		auditWriter,
+	)
+}
+
+func serveWithPortalAuditWriter(
+	ctx context.Context,
+	socketPath string,
+	store Store,
+	settings SettingsStore,
+	users UserStore,
 	ready chan<- struct{},
 	auditWriter io.Writer,
 ) error {
@@ -142,10 +183,11 @@ func serveWithSettingsAuditWriter(
 			return fmt.Errorf("accept control connection: %w", err)
 		}
 
-		handleConnectionWithSettings(
+		handleConnectionWithPortal(
 			connection,
 			store,
 			settings,
+			users,
 			auditWriter,
 		)
 	}
@@ -234,6 +276,22 @@ func handleConnectionWithSettings(
 	settings SettingsStore,
 	auditWriter io.Writer,
 ) {
+	handleConnectionWithPortal(
+		connection,
+		store,
+		settings,
+		nil,
+		auditWriter,
+	)
+}
+
+func handleConnectionWithPortal(
+	connection *net.UnixConn,
+	store Store,
+	settings SettingsStore,
+	users UserStore,
+	auditWriter io.Writer,
+) {
 	defer connection.Close()
 
 	if err := connection.SetReadDeadline(
@@ -260,15 +318,12 @@ func handleConnectionWithSettings(
 				response,
 			)
 		} else {
-			if settings != nil {
-				response = DispatchWithSettings(
-					store,
-					settings,
-					request,
-				)
-			} else {
-				response = Dispatch(store, request)
-			}
+			response = DispatchFull(
+				store,
+				settings,
+				users,
+				request,
+			)
 
 			writeMutationAudit(
 				auditWriter,

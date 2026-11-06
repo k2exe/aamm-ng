@@ -100,9 +100,26 @@ func (client *Client) mutationAuditFromContext(
 		}
 	}
 
+	authRole := RoleAdmin
+	authMethod := ""
+
+	switch identity.Method {
+	case "", auditidentity.MethodAREDN:
+		// The AREDN administrator. Any role in the identity is ignored.
+	case auditidentity.MethodPortal:
+		authMethod = AuthMethodPortal
+		authRole = identity.Role
+	default:
+		return MutationAudit{}, fmt.Errorf(
+			"%w: unknown authentication method",
+			ErrInvalidRequest,
+		)
+	}
+
 	audit := MutationAudit{
 		AuthNode:   identity.Name,
-		AuthRole:   "admin",
+		AuthRole:   authRole,
+		AuthMethod: authMethod,
 		SourceIP:   sourceIP,
 		SourceNode: attribution.SourceNode,
 		SourceHost: attribution.SourceHost,

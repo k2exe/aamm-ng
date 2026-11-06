@@ -24,6 +24,15 @@ const (
 	ErrorUnsafeFile                  = "unsafe_file"
 	ErrorStoreClosed                 = "store_closed"
 	ErrorInternal                    = "internal_error"
+
+	ErrorForbidden          = "forbidden"
+	ErrorPortalUnavailable  = "portal_unavailable"
+	ErrorInvalidCredentials = "invalid_credentials"
+	ErrorInvalidUser        = "invalid_user"
+	ErrorUserExists         = "user_exists"
+	ErrorUserNotFound       = "user_not_found"
+	ErrorTooManyUsers       = "too_many_users"
+	ErrorUserDurability     = "user_durability_uncertain"
 )
 
 type EntryResult struct {

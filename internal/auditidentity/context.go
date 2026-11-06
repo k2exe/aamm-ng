@@ -7,9 +7,22 @@ import "context"
 // browser-supplied copy of this header.
 const SourceIPHeader = "X-AAMM-Remote-Addr"
 
+// Method values for Identity.Method.
+const (
+	MethodAREDN  = "aredn"
+	MethodPortal = "portal"
+)
+
+// Identity is the authenticated actor behind a request.
+//
+// Method and Role are empty for an AREDN administrator, which is the
+// existing admin UI. They are set to MethodPortal and the user's role for a
+// portal user.
 type Identity struct {
 	Name     string
 	SourceIP string
+	Method   string
+	Role     string
 }
 
 type contextKey struct{}

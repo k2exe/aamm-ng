@@ -8,11 +8,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/k2exe/aamm-ng/internal/alertstore"
 	"github.com/k2exe/aamm-ng/internal/appconfig"
 	"github.com/k2exe/aamm-ng/internal/localcontrol"
+	"github.com/k2exe/aamm-ng/internal/portalusers"
 )
 
 type config struct {
@@ -79,6 +81,19 @@ func runWithSocketPath(
 		)
 	}
 
+	// The user file sits next to the configuration file, in the same
+	// directory that only the daemon user can enter.
+	users, err := portalusers.Open(
+		filepath.Join(filepath.Dir(config.configPath), "users.json"),
+		portalusers.Options{},
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"startup: portal users: %w",
+			err,
+		)
+	}
+
 	store, err := alertstore.Open(alertstore.Config{
 		AlertRoot:  config.alertRoot,
 		BackupRoot: config.backupRoot,
@@ -91,11 +106,12 @@ func runWithSocketPath(
 	serverErr := make(chan error, 1)
 
 	go func() {
-		serverErr <- localcontrol.ServeWithSettings(
+		serverErr <- localcontrol.ServeWithPortal(
 			ctx,
 			socketPath,
 			store,
 			settings,
+			users,
 			ready,
 		)
 	}()

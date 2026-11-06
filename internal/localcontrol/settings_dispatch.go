@@ -16,6 +16,10 @@ func DispatchWithSettings(
 	settings SettingsStore,
 	request Request,
 ) Response {
+	if response := authorizeAttributed(request); response != nil {
+		return *response
+	}
+
 	switch request.Operation {
 	case OperationSettingsRead:
 		return dispatchSettingsRead(settings)
