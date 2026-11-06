@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# Open the AAMM-NG multi-user portal port to the mesh.
+#
+# AREDN runs every executable file in /etc/local/mesh-firewall each time the
+# firewall reloads. The mesh zones reject all input except the ports that
+# are opened here, so the portal would not be reachable from the mesh
+# without this rule.
+#
+# The rule is always present. When the portal is off, nothing listens on the
+# port and the connection is refused. "LAN only" is enforced by the portal,
+# which then listens on the LAN address only.
+PORT=11314
+
+nft insert rule inet fw4 input_wifi tcp dport "$PORT" accept
+nft insert rule inet fw4 input_dtdlink tcp dport "$PORT" accept
+
+if [ "$MESHFW_WG_TUNNELS_ENABLED" = "1" ]; then
+	nft insert rule inet fw4 input_vpn tcp dport "$PORT" accept
+fi

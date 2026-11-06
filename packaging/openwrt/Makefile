@@ -60,6 +60,12 @@ define Package/aamm-ng/install
 		./files/aamm-ng-web.init \
 		$(1)/etc/init.d/aamm-ng-web
 
+	$(INSTALL_DIR) $(1)/etc/local/mesh-firewall
+
+	$(INSTALL_BIN) \
+		./files/aamm-ng-portal.firewall \
+		$(1)/etc/local/mesh-firewall/60-aamm-ng-portal
+
 	$(INSTALL_DIR) $(1)/www/cgi-bin/apps/AAMM-NG
 
 	$(INSTALL_BIN) \
@@ -79,6 +85,20 @@ define Package/aamm-ng/install
 	$(INSTALL_DATA) \
 		./files/aamm-ng.js \
 		$(1)/www/apps/AAMM-NG/aamm-ng.js
+endef
+
+# Reload the firewall so that the portal rule is added now, and removed when
+# the package is removed. A failed reload must not fail the install.
+define Package/aamm-ng/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] || /etc/init.d/firewall reload >/dev/null 2>&1 || true
+exit 0
+endef
+
+define Package/aamm-ng/postrm
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] || /etc/init.d/firewall reload >/dev/null 2>&1 || true
+exit 0
 endef
 
 $(eval $(call BuildPackage,aamm-ng))

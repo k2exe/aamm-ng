@@ -80,3 +80,65 @@ without a new source-identity security design.
 
 A direct network listener would let a client supply the internal trust header
 unless another trusted boundary replaced the CGI bridge.
+
+## Multi-user portal
+
+The multi-user portal (`docs/portal.md`) is a second listener. It is the
+network listener that the text above warns about. It has its own source
+identity design, which does not use the CGI bridge.
+
+### Source address
+
+The portal uses the address of the TCP connection as the source address. This
+is `request.RemoteAddr`.
+
+The portal never reads a source address from a header. It ignores
+`X-AAMM-Remote-Addr`, `X-Forwarded-For`, `X-Real-IP` and `Forwarded`.
+
+A test fails if the portal code reads one of these headers.
+
+A client behind NAT on the node LAN appears with the node address. A client
+that reaches the portal through a mesh router appears with its mesh address.
+
+### Identity
+
+A portal identity has `auth_method` set to `portal`. The role is `editor` or
+`viewer`. A portal identity is never `admin`.
+
+The portal user name is authenticated by the daemon, which checks the
+password hash. The portal user name is not an AREDN node name. Do not use it
+as one.
+
+The AREDN administrator keeps the empty method (or `aredn`) and the role
+`admin`. Only this identity may change settings and users.
+
+### Daemon checks
+
+The daemon decides what each identity may do. It does not trust the web
+service to decide.
+
+| Operation | AREDN admin | Portal editor | Portal viewer |
+|---|---|---|---|
+| list, read | yes | yes | yes |
+| create, write, convert, delete | yes | yes | no |
+| change settings, manage users | yes | no | no |
+
+The daemon denies an operation that has no rule.
+
+### Audit
+
+Each portal login attempt writes an audit line. The line has the user name
+that was tried, `auth_method="portal"`, the source address and the outcome.
+It never has a password.
+
+Each alert change by a portal user has `auth_method="portal"` and the
+portal role.
+
+### Listener rules
+
+- The portal listens on port 11314 only when an administrator turns it on.
+- With "LAN only", it listens on the node LAN address. If it cannot find this
+  address, it does not listen.
+- With "LAN and mesh", it listens on all addresses. The package opens the
+  port in the mesh firewall.
+- The administrator web service stays on `127.0.0.1:11313`.

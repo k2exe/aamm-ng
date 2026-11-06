@@ -314,6 +314,30 @@ Select Delete.
 
 AAMM-NG creates a backup before it deletes the alert.
 
+## Multi-user portal (optional)
+
+The multi-user portal lets named users read and edit alerts. These users do
+not need the AREDN node administrator password.
+
+The portal is off by default. It has its own port (11314) and its own login.
+The AAMM-NG administrator pages do not change.
+
+To use it:
+
+1. Log in to the AREDN node as the administrator.
+2. Open AAMM-NG and select Settings.
+3. In the Multi-user portal section, set Portal to On, and select Save.
+4. Add a user with the role viewer or editor.
+
+A viewer can read alerts. An editor can also create, edit, convert and delete
+alerts. Only the AREDN administrator can manage users.
+
+The portal does not use encryption. Passwords cross the network as plain
+text. Tell users not to reuse a password from another service.
+
+For the security model, the limits and the steps to offer the portal as an
+AREDN service, see [Multi-user portal](docs/portal.md).
+
 ## Alert targets
 
 AAMM-NG uses the standard AREDN Alert Message filename model.
@@ -389,6 +413,10 @@ behind the AREDN CGI application.
 
 Do not expose the AAMM-NG backend service directly to the mesh or the
 Internet.
+
+The optional multi-user portal is a separate listener on port 11314. It is
+the only part of AAMM-NG that listens on the network. See
+[Multi-user portal](docs/portal.md).
 
 Do not send passwords, session cookies, private keys, or other
 credentials in GitHub issues.
@@ -481,6 +509,8 @@ Do not include credentials or private keys.
 ## Documentation
 
 - [AREDN Alert Distribution Setup](docs/aredn-alert-distribution.md)
+- [Multi-user portal](docs/portal.md)
+- [No TLS, password hashing only](docs/no-tls.md)
 - [Audit Source Identity Trust Boundary](docs/audit-trust-boundary.md)
 - [Documentation Style](docs/documentation-style.md)
 - [Contributing](CONTRIBUTING.md)
