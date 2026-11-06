@@ -12,22 +12,58 @@ SETTINGS_ROOT=/etc/aamm-ng/settings
 CONFIG_PATH=$SETTINGS_ROOT/config.json
 RUNTIME_DIR=/run/aamm-ng
 
+# Minimum free space on /overlay (in KB) for the flash filesystem to work.
+MIN_FREE_KB=256
+
+log_error() {
+	logger -t aamm-ng -p daemon.err "$*"
+}
+
+# Explain why a directory could not be prepared. On small nodes the flash
+# overlay can be full. AREDN then mounts the root filesystem read-only, and
+# every write below fails.
+report_filesystem_problem() {
+	local target="$1"
+	local free_kb
+
+	if awk '$2 == "/" { ro = ($4 ~ /(^|,)ro(,|$)/) } END { exit !ro }' \
+		/proc/mounts 2>/dev/null; then
+		log_error "cannot prepare $target: the root filesystem is read-only; the flash overlay may be full (run 'df -k /overlay' and 'logread | grep overlayfs')"
+		return 0
+	fi
+
+	free_kb="$(df -k /overlay 2>/dev/null | awk 'NR == 2 { print $4 }')"
+
+	case "$free_kb" in
+	'' | *[!0-9]*)
+		;;
+	*)
+		if [ "$free_kb" -lt "$MIN_FREE_KB" ]; then
+			log_error "cannot prepare $target: only ${free_kb} KB free on /overlay; at least ${MIN_FREE_KB} KB is needed (remove packages to free space)"
+			return 0
+		fi
+		;;
+	esac
+
+	log_error "cannot prepare $target: directory setup failed"
+}
+
+# prepare_directory <path> <owner:group> <mode>
+prepare_directory() {
+	if mkdir -p "$1" && chown "$2" "$1" && chmod "$3" "$1"; then
+		return 0
+	fi
+
+	report_filesystem_problem "$1"
+
+	return 1
+}
+
 prepare_directories() {
-	mkdir -p "$ALERT_ROOT" || return 1
-	chown root:aamm-ng "$ALERT_ROOT" || return 1
-	chmod 0775 "$ALERT_ROOT" || return 1
-
-	mkdir -p "$BACKUP_ROOT" || return 1
-	chown aamm-ng:aamm-ng "$BACKUP_ROOT" || return 1
-	chmod 0700 "$BACKUP_ROOT" || return 1
-
-	mkdir -p "$SETTINGS_ROOT" || return 1
-	chown aamm-ng:aamm-ng "$SETTINGS_ROOT" || return 1
-	chmod 0700 "$SETTINGS_ROOT" || return 1
-
-	mkdir -p "$RUNTIME_DIR" || return 1
-	chown aamm-ng:aamm-ng-control "$RUNTIME_DIR" || return 1
-	chmod 2750 "$RUNTIME_DIR" || return 1
+	prepare_directory "$ALERT_ROOT" root:aamm-ng 0775 || return 1
+	prepare_directory "$BACKUP_ROOT" aamm-ng:aamm-ng 0700 || return 1
+	prepare_directory "$SETTINGS_ROOT" aamm-ng:aamm-ng 0700 || return 1
+	prepare_directory "$RUNTIME_DIR" aamm-ng:aamm-ng-control 2750 || return 1
 }
 
 start_service() {
