@@ -21,6 +21,10 @@ type Store interface {
 }
 
 func Dispatch(store Store, request Request) Response {
+	if response := authorizeAttributed(request); response != nil {
+		return *response
+	}
+
 	switch request.Operation {
 	case OperationList:
 		return dispatchList(store)

@@ -22,8 +22,32 @@ var (
 	ErrDurabilityUncertain = errors.New("application configuration durability is uncertain")
 )
 
+// Portal reach values.
+const (
+	ReachMesh = "mesh"
+	ReachLAN  = "lan"
+)
+
+// Portal is the setting for the multi-user web portal.
+//
+// An empty Reach means the default, which is ReachMesh.
+type Portal struct {
+	Enabled bool   `json:"enabled"`
+	Reach   string `json:"reach,omitempty"`
+}
+
+// EffectiveReach returns the reach, with the default applied.
+func (portal Portal) EffectiveReach() string {
+	if portal.Reach == "" {
+		return ReachMesh
+	}
+
+	return portal.Reach
+}
+
 type Config struct {
-	Version int `json:"version"`
+	Version int    `json:"version"`
+	Portal  Portal `json:"portal,omitzero"`
 }
 
 func Defaults() Config {
@@ -38,6 +62,15 @@ func (config Config) Validate() error {
 			"%w: %d",
 			ErrUnsupportedVersion,
 			config.Version,
+		)
+	}
+
+	switch config.Portal.Reach {
+	case "", ReachMesh, ReachLAN:
+	default:
+		return fmt.Errorf(
+			"%w: invalid portal reach",
+			ErrInvalidConfig,
 		)
 	}
 

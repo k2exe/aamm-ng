@@ -3,6 +3,7 @@ package localcontrol
 import (
 	"fmt"
 	"io"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -15,7 +16,7 @@ func writeRejectedMutationAudit(
 	request Request,
 	response Response,
 ) {
-	if writer == nil || !isMutation(request.Operation) {
+	if writer == nil || !isAudited(request.Operation) {
 		return
 	}
 
@@ -25,6 +26,25 @@ func writeRejectedMutationAudit(
 
 	if target, err := alerttarget.Parse(request.Target); err == nil {
 		safeRequest.Target = target.String()
+	}
+
+	// A rejected portal request may be malformed. Keep only a bounded name
+	// and a valid source address. Never copy the password.
+	if request.Portal != nil {
+		safePortal := PortalRequest{}
+
+		if request.Portal.Name != "" &&
+			len(request.Portal.Name) <= maxPortalNameBytes {
+			safePortal.Name = request.Portal.Name
+		}
+
+		if address, err := netip.ParseAddr(
+			request.Portal.SourceIP,
+		); err == nil {
+			safePortal.SourceIP = address.Unmap().String()
+		}
+
+		safeRequest.Portal = &safePortal
 	}
 
 	if request.Audit != nil &&
@@ -47,7 +67,7 @@ func writeMutationAudit(
 	request Request,
 	response Response,
 ) {
-	if writer == nil || !isMutation(request.Operation) {
+	if writer == nil || !isAudited(request.Operation) {
 		return
 	}
 
@@ -76,6 +96,19 @@ func writeMutationAudit(
 		timestamp.UTC().Format(time.RFC3339Nano),
 	)
 
+	// A login has no authenticated identity yet. Record the name that was
+	// tried and the source address. The password is never recorded.
+	if request.Operation == OperationPortalLogin &&
+		request.Portal != nil {
+		_, _ = fmt.Fprintf(
+			writer,
+			" auth_node=%s auth_method=%s source_ip=%s",
+			strconv.Quote(request.Portal.Name),
+			strconv.Quote(AuthMethodPortal),
+			strconv.Quote(request.Portal.SourceIP),
+		)
+	}
+
 	if request.Audit != nil {
 		_, _ = fmt.Fprintf(
 			writer,
@@ -84,6 +117,14 @@ func writeMutationAudit(
 			strconv.Quote(request.Audit.AuthRole),
 			strconv.Quote(request.Audit.SourceIP),
 		)
+
+		if request.Audit.AuthMethod != "" {
+			_, _ = fmt.Fprintf(
+				writer,
+				" auth_method=%s",
+				strconv.Quote(request.Audit.AuthMethod),
+			)
+		}
 
 		if request.Audit.SourceNode != "" {
 			_, _ = fmt.Fprintf(
@@ -106,7 +147,7 @@ func writeMutationAudit(
 		writer,
 		" operation=%s target=%s outcome=%s",
 		strconv.Quote(string(request.Operation)),
-		strconv.Quote(request.Target),
+		strconv.Quote(auditTarget(request)),
 		strconv.Quote(outcome),
 	)
 
@@ -135,10 +176,32 @@ func isMutation(operation Operation) bool {
 		OperationWrite,
 		OperationConvert,
 		OperationDelete,
-		OperationSettingsReplace:
+		OperationSettingsReplace,
+		OperationPortalUserCreate,
+		OperationPortalUserSetPassword,
+		OperationPortalUserSetRole,
+		OperationPortalUserSetDisabled,
+		OperationPortalUserDelete:
 		return true
 
 	default:
 		return false
 	}
+}
+
+// isAudited reports whether an operation is written to the audit log. This
+// is every mutation, and every portal login attempt.
+func isAudited(operation Operation) bool {
+	return isMutation(operation) ||
+		operation == OperationPortalLogin
+}
+
+// auditTarget is the target shown in an audit line. For a user operation it
+// is the user name.
+func auditTarget(request Request) string {
+	if request.Portal != nil && request.Portal.Name != "" {
+		return request.Portal.Name
+	}
+
+	return request.Target
 }
