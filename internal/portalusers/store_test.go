@@ -222,6 +222,93 @@ func TestVerifyDoesNotRevealWhetherAUserExists(t *testing.T) {
 	}
 }
 
+func TestVerifyDoesTheSameTotalWorkForEveryOutcome(t *testing.T) {
+	var (
+		mu     sync.Mutex
+		counts []int
+	)
+
+	store, _ := openStore(t, Options{
+		Hash: func(password string, salt []byte, iterations int) ([]byte, error) {
+			mu.Lock()
+			counts = append(counts, iterations)
+			mu.Unlock()
+
+			return pbkdfHash(password, salt, iterations)
+		},
+	})
+
+	for _, name := range []string{"alice", "bob", "carol"} {
+		if err := store.Create(name, RoleViewer, goodPassword); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Give the users different counts, as a faster node would after a
+	// later calibration. Carol has the highest.
+	store.users[0].Iterations = 12_000
+	store.users[1].Iterations = 15_000
+	store.users[2].Iterations = 20_000
+
+	if err := store.SetDisabled("bob", true); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		label    string
+		name     string
+		password string
+	}{
+		{"wrong password", "alice", "wrong password here"},
+		{"right password", "alice", goodPassword},
+		{"user with the highest count", "carol", goodPassword},
+		{"disabled user", "bob", goodPassword},
+		{"unknown user", "mallory", goodPassword},
+		{"invalid name", "bad name!", goodPassword},
+		{"empty name", "", goodPassword},
+	}
+
+	for _, test := range cases {
+		mu.Lock()
+		counts = nil
+		mu.Unlock()
+
+		_, _ = store.Verify(test.name, test.password)
+
+		mu.Lock()
+		got := append([]int(nil), counts...)
+		mu.Unlock()
+
+		total := 0
+		for _, count := range got {
+			total += count
+		}
+
+		// Every outcome does 20,000 iterations of work in total.
+		if total != 20_000 {
+			t.Errorf("%s: hashed %v (total %d); want a total of 20000", test.label, got, total)
+		}
+	}
+}
+
+func TestVerifyWithNoUsersHashesAtTheFloor(t *testing.T) {
+	var got []int
+
+	store, _ := openStore(t, Options{
+		Hash: func(password string, salt []byte, iterations int) ([]byte, error) {
+			got = append(got, iterations)
+
+			return pbkdfHash(password, salt, iterations)
+		},
+	})
+
+	_, _ = store.Verify("nobody", goodPassword)
+
+	if len(got) != 1 || got[0] != FloorIterations {
+		t.Fatalf("hashed with %v", got)
+	}
+}
+
 func TestVerifyRejectsOverLongPasswordWithoutHashing(t *testing.T) {
 	var calls atomic.Int32
 

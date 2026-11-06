@@ -125,7 +125,7 @@ The portal is an exposed listener with its own login. Review every change to it 
 Reach and listener:
 
 - The portal is off by default and starts only when settings turn it on.
-- With reach `lan` it binds the node LAN address and must fail closed when it cannot find that address. It must never fall back to all addresses.
+- With reach `lan` it binds the node LAN address and must also refuse every connection whose peer is outside the node LAN network, because AREDN routes the LAN network across the mesh. It must fail closed when it cannot find the address or the network. It must never fall back to all addresses.
 - The port is fixed at 11314 and matches the package firewall script.
 
 Authority:

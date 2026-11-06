@@ -73,7 +73,7 @@ type controllerFixture struct {
 	logs       *[]string
 }
 
-func newControllerFixture(t *testing.T, lan func() (netip.Addr, error)) *controllerFixture {
+func newControllerFixture(t *testing.T, lan func() (netip.Prefix, error)) *controllerFixture {
 	t.Helper()
 
 	env := newEnv(t)
@@ -102,9 +102,10 @@ func newControllerFixture(t *testing.T, lan func() (netip.Addr, error)) *control
 	return &controllerFixture{controller: controller, recorder: recorder, stops: &stops, logs: &logs}
 }
 
-func lanAddress(text string) func() (netip.Addr, error) {
-	return func() (netip.Addr, error) {
-		return netip.MustParseAddr(text), nil
+// lanAddress is a LAN address on a /29 network, as AREDN nodes use.
+func lanAddress(text string) func() (netip.Prefix, error) {
+	return func() (netip.Prefix, error) {
+		return netip.PrefixFrom(netip.MustParseAddr(text), 29), nil
 	}
 }
 
@@ -163,7 +164,7 @@ func TestControllerBindsToTheLANAddressForLANReach(t *testing.T) {
 }
 
 func TestControllerDoesNotListenWhenTheLANAddressIsUnknown(t *testing.T) {
-	fixture := newControllerFixture(t, func() (netip.Addr, error) { return netip.Addr{}, ErrNoLANAddress })
+	fixture := newControllerFixture(t, func() (netip.Prefix, error) { return netip.Prefix{}, ErrNoLANAddress })
 
 	status := fixture.controller.Apply(true, appconfig.ReachLAN)
 
@@ -615,4 +616,270 @@ func TestPortalRejectsTooManyAndSlowConnections(t *testing.T) {
 		t.Fatalf("oversized headers:\n%s", headers)
 	}
 
+}
+
+// The kernel delivers a packet for the LAN address even when it arrives from
+// a mesh interface, so binding to the LAN address is not enough.
+func TestLANReachRefusesPeersOutsideTheLANNetwork(t *testing.T) {
+	// The recorder listens on loopback, so every test peer is 127.0.0.1.
+	outside := newControllerFixture(t, func() (netip.Prefix, error) {
+		return netip.MustParsePrefix("10.1.2.3/29"), nil
+	})
+
+	if status := outside.controller.Apply(true, appconfig.ReachLAN); !status.Listening {
+		t.Fatalf("status = %+v", status)
+	}
+
+	address := outside.recorder.lastReal()
+
+	for attempt := 0; attempt < 3; attempt++ {
+		connection, err := net.DialTimeout("tcp", address, time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, _ = io.WriteString(connection, "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+		_ = connection.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+		data, _ := io.ReadAll(connection)
+		connection.Close()
+
+		if len(data) != 0 {
+			t.Fatalf("a peer outside the LAN network got an answer:\n%s", data)
+		}
+	}
+
+	// The same listener answers a peer inside the LAN network.
+	inside := newControllerFixture(t, func() (netip.Prefix, error) {
+		return netip.MustParsePrefix("127.0.0.1/8"), nil
+	})
+
+	inside.controller.Apply(true, appconfig.ReachLAN)
+
+	response := rawRequest(t, inside.recorder.lastReal(), "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+	if !strings.HasPrefix(response, "HTTP/1.1 200") {
+		t.Fatalf("a peer inside the LAN network was refused:\n%s", response)
+	}
+}
+
+func TestMeshReachAcceptsAnyPeer(t *testing.T) {
+	fixture := newControllerFixture(t, func() (netip.Prefix, error) {
+		return netip.MustParsePrefix("10.1.2.3/29"), nil
+	})
+
+	fixture.controller.Apply(true, appconfig.ReachMesh)
+
+	response := rawRequest(t, fixture.recorder.lastReal(), "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+	if !strings.HasPrefix(response, "HTTP/1.1 200") {
+		t.Fatalf("response:\n%s", response)
+	}
+}
+
+func TestLANReachBindsTheLANAddressAndKeepsTheNetworkFilter(t *testing.T) {
+	fixture := newControllerFixture(t, lanAddress("10.209.214.17"))
+
+	status := fixture.controller.Apply(true, appconfig.ReachLAN)
+
+	if status.Address != "10.209.214.17:11314" {
+		t.Fatalf("address = %q", status.Address)
+	}
+
+	fixture.controller.mu.Lock()
+	address := fixture.controller.current.address
+	fixture.controller.mu.Unlock()
+
+	if address != "10.209.214.17:11314" {
+		t.Fatalf("listening on %q", address)
+	}
+}
+
+func TestPeerFilterClosesRefusedConnectionsAndKeepsListening(t *testing.T) {
+	inner, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var refused, allowedCount int
+
+	var mu sync.Mutex
+
+	filter := &peerFilter{Listener: inner, allow: func(address netip.Addr) bool {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if !address.IsLoopback() {
+			refused++
+
+			return false
+		}
+
+		// Refuse the first two loopback peers, then allow.
+		if allowedCount < 2 {
+			allowedCount++
+			refused++
+
+			return false
+		}
+
+		return true
+	}}
+	defer filter.Close()
+
+	accepted := make(chan net.Conn, 1)
+
+	go func() {
+		connection, err := filter.Accept()
+		if err == nil {
+			accepted <- connection
+		}
+	}()
+
+	for attempt := 0; attempt < 3; attempt++ {
+		connection, err := net.Dial("tcp", inner.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_ = connection.SetReadDeadline(time.Now().Add(time.Second))
+
+		buffer := make([]byte, 1)
+		_, readErr := connection.Read(buffer)
+
+		if attempt < 2 && readErr == nil {
+			t.Fatalf("attempt %d: a refused connection stayed open", attempt)
+		}
+
+		if attempt == 2 {
+			select {
+			case server := <-accepted:
+				server.Close()
+			case <-time.After(time.Second):
+				t.Fatal("the allowed connection was not accepted")
+			}
+		}
+
+		connection.Close()
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if refused != 2 {
+		t.Fatalf("refused = %d; want 2", refused)
+	}
+}
+
+func TestPeerFilterRefusesNonTCPAndUnparseablePeers(t *testing.T) {
+	for _, address := range []net.Addr{&net.UnixAddr{Name: "x", Net: "unix"}, &net.TCPAddr{}} {
+		server, client := net.Pipe()
+
+		filter := &peerFilter{
+			Listener: &oneConnection{conn: &addressedConn{Conn: server, addr: address}},
+			allow:    func(netip.Addr) bool { return true },
+		}
+
+		done := make(chan struct{})
+
+		go func() {
+			defer close(done)
+
+			_, _ = filter.Accept()
+		}()
+
+		_ = client.SetReadDeadline(time.Now().Add(time.Second))
+
+		if _, err := client.Read(make([]byte, 1)); err == nil {
+			t.Errorf("a connection from %v was kept", address)
+		}
+
+		client.Close()
+		<-done
+	}
+}
+
+type addressedConn struct {
+	net.Conn
+	addr net.Addr
+}
+
+func (connection *addressedConn) RemoteAddr() net.Addr { return connection.addr }
+
+type oneConnection struct {
+	conn net.Conn
+	done bool
+}
+
+func (listener *oneConnection) Accept() (net.Conn, error) {
+	if listener.done {
+		return nil, errors.New("closed")
+	}
+
+	listener.done = true
+
+	return listener.conn, nil
+}
+
+func (listener *oneConnection) Close() error   { return nil }
+func (listener *oneConnection) Addr() net.Addr { return &net.TCPAddr{} }
+
+func TestLANNetworkFindsThePrefixOnTheLANInterface(t *testing.T) {
+	dir := t.TempDir()
+	hosts := filepath.Join(dir, "hosts")
+
+	if err := os.WriteFile(hosts, []byte("127.0.0.1\tlocalhost\n10.209.214.17\tlocalnode\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	networks := func(addresses ...string) func() ([]net.Addr, error) {
+		return func() ([]net.Addr, error) {
+			var result []net.Addr
+
+			for _, text := range addresses {
+				ip, network, err := net.ParseCIDR(text)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				network.IP = ip
+				result = append(result, network)
+			}
+
+			return result, nil
+		}
+	}
+
+	prefix, err := LANNetwork(hosts, networks("10.58.58.195/32", "10.209.214.17/29", "fe80::1/64"))
+	if err != nil || prefix != netip.MustParsePrefix("10.209.214.17/29") {
+		t.Fatalf("LANNetwork() = %v, %v", prefix, err)
+	}
+
+	if prefix.Masked() != netip.MustParsePrefix("10.209.214.16/29") {
+		t.Fatalf("masked = %v", prefix.Masked())
+	}
+
+	for label, listing := range map[string]func() ([]net.Addr, error){
+		"no interface has the address": networks("10.58.58.195/32", "192.168.0.12/24"),
+		"too short a prefix":           networks("10.209.214.17/4"),
+		"a single address only":        networks("10.209.214.17/32"),
+		"an IPv6 address only":         networks("fe80::1/64"),
+		"nothing":                      networks(),
+		"a lookup error":               func() ([]net.Addr, error) { return nil, errors.New("no interfaces") },
+	} {
+		if label == "a single address only" {
+			// /32 is accepted: it means only the node itself.
+			if prefix, err := LANNetwork(hosts, listing); err != nil || prefix.Bits() != 32 {
+				t.Errorf("%s: %v, %v", label, prefix, err)
+			}
+
+			continue
+		}
+
+		if prefix, err := LANNetwork(hosts, listing); !errors.Is(err, ErrNoLANAddress) {
+			t.Errorf("%s: LANNetwork() = %v, %v; want ErrNoLANAddress", label, prefix, err)
+		}
+	}
+
+	if _, err := LANNetwork(filepath.Join(dir, "missing"), networks("10.209.214.17/29")); !errors.Is(err, ErrNoLANAddress) {
+		t.Fatalf("a missing hosts file: %v", err)
+	}
 }

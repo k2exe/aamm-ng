@@ -35,7 +35,8 @@ type Status struct {
 type ControllerOptions struct {
 	Port   int
 	Listen func(network, address string) (net.Listener, error)
-	LAN    func() (netip.Addr, error)
+	// LAN returns this node's LAN address with its network prefix length.
+	LAN func() (netip.Prefix, error)
 	// OnStop runs when the listener stops, so that sessions can end.
 	OnStop func()
 	Logf   func(format string, arguments ...any)
@@ -71,8 +72,8 @@ func NewController(
 	}
 
 	if options.LAN == nil {
-		options.LAN = func() (netip.Addr, error) {
-			return LANAddress(HostsPath)
+		options.LAN = func() (netip.Prefix, error) {
+			return LANNetwork(HostsPath, net.InterfaceAddrs)
 		}
 	}
 
@@ -141,20 +142,30 @@ func (controller *Controller) Apply(enabled bool, reach string) Status {
 		return controller.statusLocked()
 	}
 
-	var host string
+	var (
+		host   string
+		filter func(netip.Addr) bool
+	)
 
 	switch reach {
 	case appconfig.ReachLAN:
-		address, err := controller.options.LAN()
-		if err != nil {
+		network, err := controller.options.LAN()
+		if err != nil || !network.IsValid() {
 			controller.stopLocked()
-			controller.status.Error = "The LAN address of this node is not known."
-			controller.logOnce("not listening: " + err.Error())
+			controller.status.Error = "The LAN network of this node is not known."
+			controller.logOnce(fmt.Sprintf("not listening: %v", err))
 
 			return controller.statusLocked()
 		}
 
-		host = address.String()
+		host = network.Addr().String()
+
+		// Binding to the LAN address is not enough. AREDN routes the LAN
+		// subnet across the mesh, and the kernel delivers a packet for the
+		// LAN address even when it arrives on a mesh interface. So the
+		// portal also refuses every peer outside the LAN network.
+		lan := network.Masked()
+		filter = func(peer netip.Addr) bool { return lan.Contains(peer) }
 
 	case appconfig.ReachMesh:
 		host = "0.0.0.0"
@@ -192,6 +203,10 @@ func (controller *Controller) Apply(enabled bool, reach string) Status {
 		controller.logOnce("listen " + address + ": " + err.Error())
 
 		return controller.statusLocked()
+	}
+
+	if filter != nil {
+		listener = &peerFilter{Listener: listener, allow: filter}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

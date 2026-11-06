@@ -328,10 +328,10 @@ func TestSettingsPageShowsRuntimeStatus(t *testing.T) {
 		t.Fatalf("settings page:\n%s", body)
 	}
 
-	fixture.runtime.status = portal.Status{Enabled: true, Reach: "lan", Error: "The LAN address of this node is not known."}
+	fixture.runtime.status = portal.Status{Enabled: true, Reach: "lan", Error: "The LAN network of this node is not known."}
 
 	body = fixture.get("/settings").Body.String()
-	if !strings.Contains(body, "Not listening") || !strings.Contains(body, "The LAN address of this node is not known.") {
+	if !strings.Contains(body, "Not listening") || !strings.Contains(body, "The LAN network of this node is not known.") {
 		t.Fatal("a start failure is not shown")
 	}
 }

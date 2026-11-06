@@ -137,8 +137,10 @@ portal role.
 ### Listener rules
 
 - The portal listens on port 11314 only when an administrator turns it on.
-- With "LAN only", it listens on the node LAN address. If it cannot find this
-  address, it does not listen.
+- With "LAN only", it listens on the node LAN address. It also refuses every
+  connection whose peer address is outside the node LAN network, because AREDN
+  routes the LAN network across the mesh. If it cannot find the address or the
+  network, it does not listen.
 - With "LAN and mesh", it listens on all addresses. The package opens the
   port in the mesh firewall.
 - The administrator web service stays on `127.0.0.1:11313`.

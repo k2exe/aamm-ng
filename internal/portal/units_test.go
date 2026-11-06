@@ -380,3 +380,26 @@ func TestLimiterIsSafeForConcurrentUse(t *testing.T) {
 
 	group.Wait()
 }
+
+func TestRevokeUserIgnoresCase(t *testing.T) {
+	clock := &fakeClock{t: time.Now()}
+	store := newTestSessions(clock)
+
+	other, _, _ := store.Create("alicia", "viewer", "192.0.2.2")
+
+	for _, name := range []string{"Alice", "ALICE", "alice"} {
+		token, _, _ := store.Create("alice", "viewer", "192.0.2.1")
+
+		if count := store.RevokeUser(name); count != 1 {
+			t.Errorf("RevokeUser(%q) ended %d sessions; want 1", name, count)
+		}
+
+		if _, ok := store.Lookup(token, "192.0.2.1"); ok {
+			t.Errorf("RevokeUser(%q) left the session", name)
+		}
+	}
+
+	if _, ok := store.Lookup(other, "192.0.2.2"); !ok {
+		t.Fatal("another user's session was ended")
+	}
+}

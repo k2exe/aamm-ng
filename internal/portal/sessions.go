@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -169,7 +170,9 @@ func (store *Sessions) RevokeUser(user string) int {
 	count := 0
 
 	for token, session := range store.items {
-		if session.User == user {
+		// Names are case-insensitive. The user store keeps them in lower
+		// case, but a caller may use any case.
+		if strings.EqualFold(session.User, user) {
 			delete(store.items, token)
 
 			count++

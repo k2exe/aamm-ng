@@ -36,11 +36,21 @@ The portal address is `http://<node-name>.local.mesh:11314/`.
 | Setting | Effect |
 |---|---|
 | This node's LAN and the mesh | The portal listens on all addresses. Other nodes on the mesh can connect. |
-| This node's LAN only | The portal listens on the node LAN address only. |
+| This node's LAN only | The portal listens on the node LAN address. It accepts connections only from the node LAN network. It refuses other nodes on the mesh. |
 
-For "LAN only", the portal needs the LAN address of the node. It reads this
-from the `localnode` line in `/etc/hosts`. If it cannot find the address, it
-does not listen. It never falls back to all addresses.
+For "LAN only", the portal needs the LAN address and the LAN network of the
+node. It reads the address from the `localnode` line in `/etc/hosts`. It reads
+the size of the network from the interface that has this address. If it
+cannot find them, it does not listen. It never falls back to all addresses.
+
+Binding to the LAN address is not enough. AREDN routes the LAN network across
+the mesh, and the kernel delivers a packet for the LAN address even when it
+arrives from a mesh interface. For this reason the portal checks the address
+of each connection. It closes a connection from outside the LAN network before
+it reads anything.
+
+The package opens port 11314 in the mesh firewall in both settings. The
+portal, not the firewall, enforces "LAN only".
 
 ## Offer the portal as an AREDN service
 
@@ -126,9 +136,9 @@ Tell portal users:
 
 Look at the Status line on the Settings page.
 
-- "The LAN address of this node is not known": the setting is "LAN only", and
-  `/etc/hosts` has no `localnode` line. Select "LAN and mesh", or fix the
-  node network.
+- "The LAN network of this node is not known": the setting is "LAN only", and
+  `/etc/hosts` has no `localnode` line, or no interface has that address.
+  Select "LAN and mesh", or fix the node network.
 - "The portal could not start": another program uses port 11314.
 
 Run `logread | grep aamm-ng` on the node for the detail.

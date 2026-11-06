@@ -523,14 +523,21 @@ func (store *Store) Verify(name string, password string) (User, error) {
 
 	store.mu.Lock()
 
+	// The check costs the same in every case. A real user, even a disabled
+	// one, is hashed with their own record. An unknown name is hashed with
+	// the highest count in use. A real user with a lower count is padded up
+	// to that count below. So the time does not show whether a name exists
+	// or is enabled.
+	target := store.highestIterationsLocked()
+
 	candidate := store.dummy
+	candidate.Iterations = target
 	known := false
 
 	if nameErr == nil {
-		if index := store.find(normalized); index >= 0 &&
-			!store.users[index].Disabled {
+		if index := store.find(normalized); index >= 0 {
 			candidate = store.users[index]
-			known = true
+			known = !store.users[index].Disabled
 		}
 	}
 
@@ -545,6 +552,14 @@ func (store *Store) Verify(name string, password string) (User, error) {
 
 	store.hashMu.Lock()
 	actual, err := store.options.Hash(password, salt, candidate.Iterations)
+
+	// A user with a lower count than the highest in use is padded up to the
+	// same total work. Time is linear in the count, so every outcome takes
+	// the same time. The padding result is never used.
+	if err == nil && target > candidate.Iterations {
+		_, err = store.options.Hash(password, salt, target-candidate.Iterations)
+	}
+
 	store.hashMu.Unlock()
 
 	if err != nil {
@@ -558,6 +573,20 @@ func (store *Store) Verify(name string, password string) (User, error) {
 	}
 
 	return publicUser(candidate), nil
+}
+
+// highestIterationsLocked returns the highest iteration count of any user,
+// or the floor when there are no users.
+func (store *Store) highestIterationsLocked() int {
+	highest := FloorIterations
+
+	for _, entry := range store.users {
+		if entry.Iterations > highest {
+			highest = entry.Iterations
+		}
+	}
+
+	return highest
 }
 
 func load(path string) ([]record, error) {

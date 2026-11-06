@@ -1213,7 +1213,8 @@ var settingsTemplate = template.Must(
 								<div>
 									<div class="t">Who can connect</div>
 									<div class="s">
-										"LAN only" accepts connections on this node's LAN address only.
+										"LAN only" accepts connections only from this node's LAN network.
+										Other nodes on the mesh are refused.
 									</div>
 								</div>
 								<select name="reach" aria-label="Who can connect">
