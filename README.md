@@ -10,9 +10,9 @@ service or a separate management server.
 
 Current beta:
 
-[v0.1.2-beta](https://github.com/k2exe/aamm-ng/releases/tag/v0.1.2-beta)
+[v0.1.3-beta](https://github.com/k2exe/aamm-ng/releases/tag/v0.1.3-beta)
 
-AAMM-NG v0.1.2-beta is built and release-tested against AREDN 4.26.7.0.
+AAMM-NG v0.1.3-beta is built and release-tested against AREDN 4.26.7.0.
 
 > Beta software
 >
@@ -50,7 +50,7 @@ before editing them.
 
 Download the current beta release here:
 
-[AAMM-NG v0.1.2-beta release](https://github.com/k2exe/aamm-ng/releases/tag/v0.1.2-beta)
+[AAMM-NG v0.1.3-beta release](https://github.com/k2exe/aamm-ng/releases/tag/v0.1.3-beta)
 
 Choose the APK that matches the package architecture for your node.
 
@@ -59,16 +59,16 @@ package architecture.
 
 | Release build target | Package architecture | Download |
 | --- | --- | --- |
-| ath79 / generic | mips_24kc | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.2-beta/aamm-ng-0.1.2-r1-mips_24kc.apk) |
-| ipq40xx / mikrotik | arm_cortex-a7_neon-vfpv4 | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.2-beta/aamm-ng-0.1.2-r1-arm_cortex-a7_neon-vfpv4.apk) |
-| ramips / mt7621 | mipsel_24kc | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.2-beta/aamm-ng-0.1.2-r1-mipsel_24kc.apk) |
-| mediatek / filogic | aarch64_cortex-a53 | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.2-beta/aamm-ng-0.1.2-r1-aarch64_cortex-a53.apk) |
-| x86 / 64 | x86_64 | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.2-beta/aamm-ng-0.1.2-r1-x86_64.apk) |
+| ath79 / generic | mips_24kc | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.3-beta/aamm-ng-0.1.3-r1-mips_24kc.apk) |
+| ipq40xx / mikrotik | arm_cortex-a7_neon-vfpv4 | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.3-beta/aamm-ng-0.1.3-r1-arm_cortex-a7_neon-vfpv4.apk) |
+| ramips / mt7621 | mipsel_24kc | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.3-beta/aamm-ng-0.1.3-r1-mipsel_24kc.apk) |
+| mediatek / filogic | aarch64_cortex-a53 | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.3-beta/aamm-ng-0.1.3-r1-aarch64_cortex-a53.apk) |
+| x86 / 64 | x86_64 | [Download](https://github.com/k2exe/aamm-ng/releases/download/v0.1.3-beta/aamm-ng-0.1.3-r1-x86_64.apk) |
 
 Release verification files:
 
-- [SHA256SUMS](https://github.com/k2exe/aamm-ng/releases/download/v0.1.2-beta/SHA256SUMS)
-- [BUILD-INFO.txt](https://github.com/k2exe/aamm-ng/releases/download/v0.1.2-beta/BUILD-INFO.txt)
+- [SHA256SUMS](https://github.com/k2exe/aamm-ng/releases/download/v0.1.3-beta/SHA256SUMS)
+- [BUILD-INFO.txt](https://github.com/k2exe/aamm-ng/releases/download/v0.1.3-beta/BUILD-INFO.txt)
 - [All releases](https://github.com/k2exe/aamm-ng/releases)
 
 ## Which package do I need?
@@ -103,17 +103,35 @@ https://www.arednmesh.org/node/5096
 
 Small nodes have little writable flash.
 
+The installed files use more flash than the APK file. On a GL.iNet
+GL-AR300M16 (ath79, 16 MB flash), AAMM-NG v0.1.3-beta used 6.4 MB
+(6,428 KB) of flash. The APK file is 3.0 MB.
+
 If the flash is full, AREDN can mount the node filesystem as read-only
 when it starts. AAMM-NG cannot start in that state.
 
-Before you install, log in to the node with SSH and run:
+Before you install, find the free flash on the node. Use one of these
+methods:
 
-    df -k /overlay
+- Read "free flash" on the AREDN status page.
+- Log in to the node with SSH and run `df -k /overlay`. Read the
+  Available column (in KB).
 
-The Available column (in KB) must be larger than the size of the APK
-plus 256. The installed files can take more space than the APK file.
-The flash filesystem also needs free space to work. If the space is low,
-remove packages that you do not use first.
+On an ath79 node with 16 MB of flash, such as the GL-AR300M16, make
+sure that at least 7 MB (7,168 KB) is free. We measured the flash use
+only on this device. Other devices can use more or less. On other
+devices, make sure that the free flash is at least two times the size
+of the APK plus 1 MB. If you are not sure, do not install.
+
+If the space is low, remove packages that you do not use first.
+
+After you install, and before you restart the node, check the free
+flash again. If less than 1 MB (1,024 KB) is free, log in with SSH and
+run:
+
+    apk del aamm-ng
+
+Do not restart the node until you have free space.
 
 ### 1. Download the correct APK
 
